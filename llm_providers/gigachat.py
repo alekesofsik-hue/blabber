@@ -13,20 +13,10 @@
 
 import os
 import time
-import sys
 from typing import Optional
 from dotenv import load_dotenv
 
-# Импортируем модуль для получения токена
-# Пробуем импортировать из текущего проекта
-try:
-    from get_token_gch import get_gigachat_token_info
-except ImportError:
-    # Если модуль в другом месте, добавляем родительскую директорию в путь
-    parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    if parent_dir not in sys.path:
-        sys.path.insert(0, parent_dir)
-    from get_token_gch import get_gigachat_token_info
+from .gigachat_token import get_gigachat_token_info
 
 try:
     import httpx
@@ -187,5 +177,5 @@ def get_response(
             _token_cache['expires_at'] = 0
             # Рекурсивный вызов, но только один раз благодаря проверке _token_cache['token']
             return get_response(message, system_message, **kwargs)
-        raise Exception(f"Ошибка при обращении к GigaChat API: {error_str}")
+        raise Exception(f"Ошибка при обращении к GigaChat API: {error_str}") from e
 

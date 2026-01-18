@@ -13,7 +13,7 @@
 """
 
 import os
-from typing import Optional
+from typing import Any, Optional
 from dotenv import load_dotenv
 
 try:
@@ -28,7 +28,7 @@ load_dotenv()
 def get_response(
     message: str,
     system_message: Optional[str] = None,
-    **kwargs
+    **kwargs: Any,
 ) -> str:
     """
     Получить ответ от Yandex GPT API.
@@ -125,5 +125,5 @@ def get_response(
                 f"Исходная ошибка: {error_msg}"
             )
         # Обработка других ошибок
-        raise Exception(f"Ошибка при обращении к Yandex GPT API: {error_msg}")
+        raise Exception(f"Ошибка при обращении к Yandex GPT API: {error_msg}") from e
 

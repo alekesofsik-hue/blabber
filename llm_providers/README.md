@@ -1,10 +1,11 @@
 # LLM Providers - Универсальные модули для работы с LLM API
 
-Эта папка содержит три независимых модуля для работы с различными языковыми моделями:
+Эта папка содержит независимые модули для работы с различными языковыми моделями:
 
 - **openrouter.py** - модуль для OpenRouter API (DeepSeek и другие модели)
 - **gigachat.py** - модуль для GigaChat API
 - **yandexgpt.py** - модуль для Yandex GPT API
+- **ollama.py** - модуль для Ollama (локальная модель через HTTP API)
 
 ## Особенности
 
@@ -57,6 +58,7 @@ response = get_response(
 - **OpenRouter**: `PROXY_API_KEY`
 - **GigaChat**: `GIGACHAT_CREDENTIALS`, `GIGACHAT_VERIFY_SSL`
 - **Yandex GPT**: `YANDEX_API_KEY`, `YANDEX_FOLDER_ID`, `YANDEX_MODEL`
+- **Ollama**: `OLLAMA_BASE_URL`, `OLLAMA_MODEL`
 
 Также все параметры можно передавать напрямую через `**kwargs`.
 

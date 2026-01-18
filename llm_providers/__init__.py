@@ -15,10 +15,12 @@
 from .openrouter import get_response as openrouter_get_response
 from .gigachat import get_response as gigachat_get_response
 from .yandexgpt import get_response as yandexgpt_get_response
+from .ollama import get_response as ollama_get_response
 
 __all__ = [
     'openrouter_get_response',
     'gigachat_get_response',
     'yandexgpt_get_response',
+    'ollama_get_response',
 ]
 

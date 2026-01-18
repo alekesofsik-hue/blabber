@@ -1,0 +1,55 @@
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: blabber-ollama
+    volumes:
+      - ollama:/root/.ollama
+    ports:
+      - "11434:11434"
+    environment:
+      # Можно переопределять через .env
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-gemma2:2b-instruct-q4_K_M}
+    # Поднимаем сервер и один раз скачиваем модель при старте контейнера.
+    # Если модель уже в volume — скачивание будет быстрым/пропустится.
+    command: >
+      sh -lc "ollama serve &
+              sleep 2;
+              ollama pull ${OLLAMA_MODEL:-gemma2:2b-instruct-q4_K_M};
+              wait"
+    restart: unless-stopped
+
+  blabber:
+    build: .
+    container_name: blabber-bot
+    depends_on:
+      - ollama
+    environment:
+      TELEGRAM_TOKEN: ${TELEGRAM_TOKEN}
+
+      # OpenRouter
+      PROXY_API_KEY: ${PROXY_API_KEY:-}
+
+      # GigaChat
+      GIGACHAT_CREDENTIALS: ${GIGACHAT_CREDENTIALS:-}
+      GIGACHAT_VERIFY_SSL: ${GIGACHAT_VERIFY_SSL:-false}
+
+      # Yandex GPT
+      YANDEX_API_KEY: ${YANDEX_API_KEY:-}
+      YANDEX_FOLDER_ID: ${YANDEX_FOLDER_ID:-}
+      YANDEX_MODEL: ${YANDEX_MODEL:-yandexgpt}
+
+      # Ollama
+      OLLAMA_BASE_URL: http://ollama:11434
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-gemma2:2b-instruct-q4_K_M}
+      OLLAMA_TIMEOUT: ${OLLAMA_TIMEOUT:-180}
+      OLLAMA_NUM_PREDICT: ${OLLAMA_NUM_PREDICT:-256}
+
+      # Better Stack Logs
+      BETTERSTACK_SOURCE_TOKEN: ${BETTERSTACK_SOURCE_TOKEN:-}
+      BETTERSTACK_INGEST_HOST: ${BETTERSTACK_INGEST_HOST:-}
+      TELEMETRY_USER_HASH_SALT: ${TELEMETRY_USER_HASH_SALT:-}
+      TELEMETRY_LEVEL: ${TELEMETRY_LEVEL:-INFO}
+    restart: unless-stopped
+
+volumes:
+  ollama:

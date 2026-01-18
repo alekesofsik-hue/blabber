@@ -13,7 +13,7 @@
 """
 
 import os
-from typing import Optional
+from typing import Any, Optional
 from openai import OpenAI
 from dotenv import load_dotenv
 
@@ -23,7 +23,7 @@ load_dotenv()
 def get_response(
     message: str,
     system_message: Optional[str] = None,
-    **kwargs
+    **kwargs: Any,
 ) -> str:
     """
     Получить ответ от OpenRouter API (DeepSeek и другие модели).
@@ -77,9 +77,7 @@ def get_response(
             temperature=temperature,
             max_tokens=max_tokens,
         )
-        
         return chat_completion.choices[0].message.content
-        
     except Exception as e:
-        raise Exception(f"Ошибка при обращении к OpenRouter API: {str(e)}")
+        raise Exception(f"Ошибка при обращении к OpenRouter API: {e}") from e
 
