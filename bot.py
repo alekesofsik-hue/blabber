@@ -10,8 +10,13 @@ import telebot
 import requests
 from dotenv import load_dotenv
 from utils import get_chat_response
-from user_storage import get_user_model, set_user_model, get_available_models
+from user_storage import (
+    get_user_model, set_user_model, get_available_models,
+    is_voice_enabled, set_voice_enabled,
+    get_user_voice, set_user_voice,
+)
 from telemetry import setup_telemetry, text_meta, user_id_hash
+from tts import synthesize_voice, get_available_voices
 
 
 # Загружаем переменные окружения из .env файла
@@ -27,6 +32,51 @@ if not TELEGRAM_TOKEN:
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
 
 logger = setup_telemetry("blabber")
+
+# Лимит Telegram на длину одного сообщения
+TG_MSG_LIMIT = 4096
+
+
+def _split_text(text: str, limit: int = TG_MSG_LIMIT) -> list[str]:
+    """
+    Разбить длинный текст на части, не превышающие limit символов.
+
+    Старается резать по абзацам (\\n\\n), затем по строкам (\\n),
+    затем по пробелам, и только в крайнем случае — по жёсткому лимиту.
+    """
+    if len(text) <= limit:
+        return [text]
+
+    chunks: list[str] = []
+    while text:
+        if len(text) <= limit:
+            chunks.append(text)
+            break
+
+        # Ищем лучшее место для разрыва (приоритет: абзац > строка > пробел)
+        cut = -1
+        for sep in ("\n\n", "\n", " "):
+            pos = text.rfind(sep, 0, limit)
+            if pos > 0:
+                cut = pos + len(sep)
+                break
+
+        if cut <= 0:
+            # Не нашли разделитель — режем по жёсткому лимиту
+            cut = limit
+
+        chunks.append(text[:cut])
+        text = text[cut:]
+
+    return chunks
+
+
+def send_long_message(chat_id: int, text: str, **kwargs) -> None:
+    """
+    Отправить сообщение в Telegram, при необходимости разбив на части.
+    """
+    for chunk in _split_text(text):
+        bot.send_message(chat_id, chunk, **kwargs)
 
 
 @bot.message_handler(commands=['start'])
@@ -48,11 +98,13 @@ def handle_start(message):
         "Я умею общаться используя разные модели:\n"
         "• GigaChat\n"
         "• OpenRouter (DeepSeek)\n"
+        "• DeepSeek R1 (рассуждающая)\n"
         "• Yandex GPT\n"
         "• Ollama (local)\n\n"
         "Используй команды:\n"
         "/models - список доступных моделей\n"
         "/model <название> - переключить модель\n"
+        "/voice - управление озвучкой ответов 🔊\n"
         "/help - помощь\n\n"
         f"Сейчас используется модель: {get_available_models().get(get_user_model(user_id), 'неизвестна')}"
     )
@@ -80,8 +132,14 @@ def handle_help(message):
         "   Примеры:\n"
         "   /model gigachat - переключить на GigaChat\n"
         "   /model openrouter - переключить на OpenRouter (DeepSeek)\n"
+        "   /model reasoning - переключить на DeepSeek R1 (рассуждающая)\n"
         "   /model yandexgpt - переключить на Yandex GPT\n"
         "   /model ollama - переключить на Ollama (local)\n"
+        "/voice - управление озвучкой ответов 🔊\n"
+        "   /voice on - включить озвучку\n"
+        "   /voice off - выключить озвучку\n"
+        "   /voice alena - женский (Алёна)\n"
+        "   /voice filipp - мужской (Филипп)\n"
         "/help - показать эту справку\n\n"
         "Просто напиши мне что-нибудь, и я отвечу как балабол! 😊"
     )
@@ -133,6 +191,7 @@ def handle_model(message):
             "Примеры:\n"
             "/model gigachat\n"
             "/model openrouter\n"
+            "/model reasoning\n"
             "/model yandexgpt\n"
             "/model ollama\n\n"
             "Используй /models чтобы увидеть список доступных моделей"
@@ -188,6 +247,107 @@ def handle_model(message):
         bot.send_message(chat_id, "❌ Ошибка при переключении модели")
 
 
+@bot.message_handler(commands=['voice'])
+def handle_voice(message):
+    """
+    Обработчик команды /voice — управление голосовыми ответами.
+
+    /voice          — показать текущее состояние
+    /voice on       — включить озвучку
+    /voice off      — выключить озвучку
+    /voice svetlana — сменить голос на Светлану (женский)
+    /voice dmitry   — сменить голос на Дмитрия (мужской)
+    """
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+
+    parts = message.text.split()
+    available_voices = get_available_voices()
+
+    # Без аргумента — показать статус
+    if len(parts) < 2:
+        enabled = is_voice_enabled(user_id)
+        current_voice = get_user_voice(user_id)
+        status = "включена" if enabled else "выключена"
+
+        voice_list = "\n".join(
+            f"  {'✅' if k == current_voice else '⚪'} /voice {k} — {desc}"
+            for k, desc in available_voices.items()
+        )
+
+        bot.send_message(
+            chat_id,
+            f"🔊 Озвучка: {status}\n"
+            f"🎙 Голос: {available_voices.get(current_voice, current_voice)}\n\n"
+            f"Управление:\n"
+            f"  /voice on — включить озвучку\n"
+            f"  /voice off — выключить озвучку\n\n"
+            f"Выбор голоса:\n{voice_list}"
+        )
+        return
+
+    arg = parts[1].lower()
+
+    if arg == "on":
+        set_voice_enabled(user_id, True)
+        current_voice = get_user_voice(user_id)
+        logger.info(
+            "voice_enabled",
+            extra={
+                "event": "voice_enabled",
+                "user_id_hash": user_id_hash(user_id),
+                "voice": current_voice,
+            },
+        )
+        bot.send_message(
+            chat_id,
+            f"🔊 Озвучка включена!\n"
+            f"🎙 Голос: {available_voices.get(current_voice, current_voice)}\n\n"
+            f"Теперь после текстового ответа я буду отправлять голосовое сообщение.\n"
+            f"Чтобы сменить голос: /voice alena или /voice filipp"
+        )
+
+    elif arg == "off":
+        set_voice_enabled(user_id, False)
+        logger.info(
+            "voice_disabled",
+            extra={
+                "event": "voice_disabled",
+                "user_id_hash": user_id_hash(user_id),
+            },
+        )
+        bot.send_message(chat_id, "🔇 Озвучка выключена.")
+
+    elif arg in available_voices:
+        set_user_voice(user_id, arg)
+        # Автоматически включаем озвучку при выборе голоса
+        set_voice_enabled(user_id, True)
+        logger.info(
+            "voice_changed",
+            extra={
+                "event": "voice_changed",
+                "user_id_hash": user_id_hash(user_id),
+                "voice": arg,
+            },
+        )
+        bot.send_message(
+            chat_id,
+            f"🎙 Голос изменён на: {available_voices[arg]}\n"
+            f"🔊 Озвучка включена."
+        )
+
+    else:
+        voice_options = ", ".join(available_voices.keys())
+        bot.send_message(
+            chat_id,
+            f"❌ Неизвестный аргумент: '{arg}'\n\n"
+            f"Доступные команды:\n"
+            f"  /voice on — включить\n"
+            f"  /voice off — выключить\n"
+            f"  /voice <голос> — сменить голос ({voice_options})"
+        )
+
+
 @bot.message_handler(func=lambda message: message.text is not None)
 def handle_text_message(message):
     """
@@ -240,9 +400,41 @@ def handle_text_message(message):
             },
         )
         
-        # Отправляем ответ пользователю
-        bot.send_message(chat_id, bot_response)
-        
+        # Отправляем ответ пользователю (с разбиением, если текст длинный)
+        send_long_message(chat_id, bot_response)
+
+        # Отправляем голосовое сообщение, если озвучка включена
+        if is_voice_enabled(user_id):
+            try:
+                voice_key = get_user_voice(user_id)
+                ogg_data = synthesize_voice(bot_response, voice_key=voice_key)
+                bot.send_voice(chat_id, ogg_data)
+                logger.info(
+                    "voice_sent",
+                    extra={
+                        "event": "voice_sent",
+                        "request_id": request_id,
+                        "user_id_hash": uid_hash,
+                        "voice": voice_key,
+                        "ogg_size": len(ogg_data),
+                    },
+                )
+            except Exception as tts_err:
+                logger.warning(
+                    "voice_failed",
+                    extra={
+                        "event": "voice_failed",
+                        "request_id": request_id,
+                        "user_id_hash": uid_hash,
+                        "error_type": type(tts_err).__name__,
+                        "error": str(tts_err)[:200],
+                    },
+                )
+                bot.send_message(
+                    chat_id,
+                    f"🔇 Не удалось озвучить ответ: {tts_err}",
+                )
+
         # Отправляем краткое напоминание о том, что контекст не сохраняется
         context_notice = "ℹ️ <i>Контекст не сохраняется. Каждое сообщение обрабатывается отдельно.</i>"
         bot.send_message(chat_id, context_notice, parse_mode="HTML")

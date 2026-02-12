@@ -1,5 +1,5 @@
 """
-Утилиты для работы с OpenRouter API, GigaChat API, Yandex GPT API и Ollama (local).
+Утилиты для работы с LLM API: OpenRouter, GigaChat, Yandex GPT, Ollama и DeepSeek R1.
 
 Этот модуль обеспечивает обратную совместимость с существующим кодом бота.
 Внутри используются универсальные модули из llm_providers.
@@ -8,6 +8,7 @@
     from llm_providers.openrouter import get_response
     from llm_providers.gigachat import get_response
     from llm_providers.yandexgpt import get_response
+    from llm_providers.ollama import get_response
 """
 
 import os
@@ -45,7 +46,7 @@ def get_chat_response(
     
     Args:
         user_message: Сообщение от пользователя
-        model: Модель для генерации ('gigachat', 'openrouter' или 'yandexgpt')
+        model: Модель для генерации ('gigachat', 'openrouter', 'reasoning', 'yandexgpt' или 'ollama')
         
     Returns:
         Ответ от модели
@@ -89,10 +90,18 @@ def get_chat_response(
                 message=user_message,
                 system_message=system_message
             )
+        elif model == 'reasoning':
+            result = openrouter_get_response(
+                message=user_message,
+                system_message=system_message,
+                model="deepseek/deepseek-r1",
+                temperature=0.6,
+                max_tokens=4000,
+            )
         else:
             raise ValueError(
                 f"Неизвестная модель: {model}. "
-                f"Доступные: gigachat, openrouter, yandexgpt, ollama"
+                f"Доступные: gigachat, openrouter, reasoning, yandexgpt, ollama"
             )
 
         dt_ms = int((time.monotonic() - t0) * 1000)
