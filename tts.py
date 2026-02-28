@@ -21,6 +21,8 @@ from typing import Optional
 
 import requests
 
+from services.config_registry import get_setting
+
 logger = logging.getLogger("blabber")
 
 # API v1 endpoint (до 5000 символов, OGG Opus)
@@ -43,7 +45,14 @@ DEFAULT_VOICE = "alena"
 # Эмоция для «балабола» — good (бодрый, дружелюбный)
 DEFAULT_EMOTION = "good"
 
-TTS_MAX_CHARS = int(os.getenv("TTS_MAX_CHARS", "5000"))
+
+def _get_tts_max_chars() -> int:
+    """Max characters for TTS (from config or env)."""
+    val = get_setting("tts_max_chars", 5000, env_key="TTS_MAX_CHARS")
+    try:
+        return int(val) if val is not None else 5000
+    except (ValueError, TypeError):
+        return 5000
 
 
 def _strip_markdown(text: str) -> str:
@@ -59,8 +68,10 @@ def _strip_markdown(text: str) -> str:
     return text.strip()
 
 
-def _truncate_for_tts(text: str, max_chars: int = TTS_MAX_CHARS) -> str:
+def _truncate_for_tts(text: str, max_chars: int | None = None) -> str:
     """Обрезать текст до max_chars по границе предложения."""
+    if max_chars is None:
+        max_chars = _get_tts_max_chars()
     if len(text) <= max_chars:
         return text
     cut = text.rfind(". ", 0, max_chars)

@@ -92,6 +92,7 @@ def get_response(
             - verify_ssl: Проверять SSL сертификат (по умолчанию: False)
             - model: Название модели (по умолчанию: GigaChat)
             - timeout: Таймаут запроса в секундах (по умолчанию: 60)
+            - history: список {"role", "content"} для контекста диалога
     
     Returns:
         Ответ от модели в виде строки
@@ -124,10 +125,13 @@ def get_response(
     # Получаем токен доступа
     access_token = _get_access_token(credentials, verify_ssl)
     
+    history: list = kwargs.get('history') or []
+
     # Формируем сообщения
     messages = []
     if system_message:
         messages.append({'role': 'system', 'content': system_message})
+    messages.extend(history)
     messages.append({'role': 'user', 'content': message})
     
     headers = {

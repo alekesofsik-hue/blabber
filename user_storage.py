@@ -21,6 +21,7 @@ AVAILABLE_MODELS = {
     'gigachat': 'GigaChat',
     'openrouter': 'OpenRouter (DeepSeek)',
     'reasoning': 'DeepSeek R1 (рассуждающая)',
+    'openai': 'OpenAI (GPT-4o)',
     'yandexgpt': 'Yandex GPT',
     'ollama': 'Ollama (local)',
 }

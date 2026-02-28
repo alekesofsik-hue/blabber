@@ -41,6 +41,7 @@ def get_response(
             - folder_id: ID каталога (если не указан, берётся из YANDEX_FOLDER_ID)
             - model: Название модели (по умолчанию: yandexgpt)
             - temperature: Температура генерации (по умолчанию: 0.8)
+            - history: список {"role", "content"} для контекста диалога
     
     Returns:
         Ответ от модели в виде строки
@@ -72,27 +73,26 @@ def get_response(
             "Укажите folder_id в kwargs или установите YANDEX_FOLDER_ID в .env"
         )
     
+    history: list = kwargs.get("history") or []
+
     try:
         # Создаём SDK клиент
         sdk = YCloudML(
             folder_id=folder_id,
             auth=api_key,
         )
-        
+
         # Получаем модель completions
         model = sdk.models.completions(model_name)
-        
+
         # Формируем сообщения для модели
+        # Yandex GPT uses "text" instead of "content"
         messages = []
         if system_message:
-            messages.append({
-                "role": "system",
-                "text": system_message
-            })
-        messages.append({
-            "role": "user",
-            "text": message
-        })
+            messages.append({"role": "system", "text": system_message})
+        for h in history:
+            messages.append({"role": h["role"], "text": h["content"]})
+        messages.append({"role": "user", "text": message})
         
         # Запускаем асинхронный запрос и ждём результат
         operation = model.configure(temperature=temperature).run_deferred(messages)

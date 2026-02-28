@@ -7,6 +7,7 @@ import os
 import time
 import uuid
 import telebot
+from telebot import types
 import requests
 from dotenv import load_dotenv
 from utils import get_chat_response
@@ -17,6 +18,10 @@ from user_storage import (
 )
 from telemetry import setup_telemetry, text_meta, user_id_hash
 from tts import synthesize_voice, get_available_voices
+from database import init_db
+from middleware.auth import with_user_check
+from services.config_registry import get_config_registry, get_setting
+import services.context_service as ctx_svc
 
 
 # Загружаем переменные окружения из .env файла
@@ -32,6 +37,40 @@ if not TELEGRAM_TOKEN:
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
 
 logger = setup_telemetry("blabber")
+
+# Инициализация базы данных (создание таблиц, применение миграций)
+_DB_AVAILABLE = True
+try:
+    init_db()
+except Exception as _db_err:
+    _DB_AVAILABLE = False
+    logging.getLogger("blabber").error(
+        "db_init_failed",
+        extra={
+            "event": "db_init_failed",
+            "error": str(_db_err),
+            "fallback": "bot will run with .env defaults only",
+        },
+    )
+
+# Загрузка динамической конфигурации из БД (перезаписывает .env)
+if _DB_AVAILABLE:
+    try:
+        get_config_registry().load()
+    except Exception as _cfg_err:
+        logging.getLogger("blabber").warning(
+            "config_load_failed",
+            extra={
+                "event": "config_load_failed",
+                "error": str(_cfg_err),
+                "fallback": "falling back to .env / hardcoded defaults",
+            },
+        )
+
+# Регистрация admin-хендлеров (до остальных, чтобы pending перехватывал сообщения)
+from handlers import register_admin_handlers
+
+register_admin_handlers(bot)
 
 # Лимит Telegram на длину одного сообщения
 TG_MSG_LIMIT = 4096
@@ -79,7 +118,8 @@ def send_long_message(chat_id: int, text: str, **kwargs) -> None:
         bot.send_message(chat_id, chunk, **kwargs)
 
 
-@bot.message_handler(commands=['start'])
+@bot.message_handler(commands=["start"])
+@with_user_check(bot)
 def handle_start(message):
     """Обработчик команды /start"""
     chat_id = message.chat.id
@@ -93,26 +133,34 @@ def handle_start(message):
         },
     )
     
-    welcome_text = (
+    default_welcome = (
         "Привет! Я Blabber — балабол, который любит трепаться и болтать! 😄\n\n"
         "Я умею общаться используя разные модели:\n"
-        "• GigaChat\n"
-        "• OpenRouter (DeepSeek)\n"
-        "• DeepSeek R1 (рассуждающая)\n"
-        "• Yandex GPT\n"
-        "• Ollama (local)\n\n"
-        "Используй команды:\n"
-        "/models - список доступных моделей\n"
-        "/model <название> - переключить модель\n"
-        "/voice - управление озвучкой ответов 🔊\n"
-        "/help - помощь\n\n"
-        f"Сейчас используется модель: {get_available_models().get(get_user_model(user_id), 'неизвестна')}"
+        "• GigaChat, OpenRouter (DeepSeek), DeepSeek R1\n"
+        "• OpenAI (GPT-4o), Yandex GPT, Ollama (local)\n\n"
+        "Ключевые команды:\n"
+        "/models — список моделей\n"
+        "/model <название> — переключить модель\n"
+        "/mode — режим разговора (с памятью / без памяти)\n"
+        "/reset — очистить историю\n"
+        "/voice — управление озвучкой\n"
+        "/help — полная справка\n\n"
+        f"Модель: {get_available_models().get(get_user_model(user_id), 'неизвестна')}"
     )
+    welcome_from_config = get_setting("welcome_message")
+    if welcome_from_config:
+        welcome_text = str(welcome_from_config).replace(
+            "{model}",
+            get_available_models().get(get_user_model(user_id), "неизвестна"),
+        )
+    else:
+        welcome_text = default_welcome
     
     bot.send_message(chat_id, welcome_text)
 
 
-@bot.message_handler(commands=['help'])
+@bot.message_handler(commands=["help"])
+@with_user_check(bot)
 def handle_help(message):
     """Обработчик команды /help"""
     chat_id = message.chat.id
@@ -130,16 +178,21 @@ def handle_help(message):
         "/models - показать доступные модели\n"
         "/model <название> - переключить модель\n"
         "   Примеры:\n"
-        "   /model gigachat - переключить на GigaChat\n"
-        "   /model openrouter - переключить на OpenRouter (DeepSeek)\n"
-        "   /model reasoning - переключить на DeepSeek R1 (рассуждающая)\n"
-        "   /model yandexgpt - переключить на Yandex GPT\n"
-        "   /model ollama - переключить на Ollama (local)\n"
+        "   /model gigachat\n"
+        "   /model openrouter\n"
+        "   /model reasoning\n"
+        "   /model openai\n"
+        "   /model yandexgpt\n"
+        "   /model ollama\n\n"
+        "/mode - режим разговора\n"
+        "   /mode chat   — Чат (с памятью)\n"
+        "   /mode single — Вопрос-ответ (без памяти)\n"
+        "/reset или /clear - очистить историю разговора 🗑\n\n"
         "/voice - управление озвучкой ответов 🔊\n"
-        "   /voice on - включить озвучку\n"
-        "   /voice off - выключить озвучку\n"
-        "   /voice alena - женский (Алёна)\n"
-        "   /voice filipp - мужской (Филипп)\n"
+        "   /voice on — включить\n"
+        "   /voice off — выключить\n"
+        "   /voice alena — женский (Алёна)\n"
+        "   /voice filipp — мужской (Филипп)\n\n"
         "/help - показать эту справку\n\n"
         "Просто напиши мне что-нибудь, и я отвечу как балабол! 😊"
     )
@@ -147,7 +200,8 @@ def handle_help(message):
     bot.send_message(chat_id, help_text)
 
 
-@bot.message_handler(commands=['models'])
+@bot.message_handler(commands=["models"])
+@with_user_check(bot)
 def handle_models(message):
     """Обработчик команды /models - показать доступные модели"""
     chat_id = message.chat.id
@@ -175,7 +229,8 @@ def handle_models(message):
     bot.send_message(chat_id, models_text)
 
 
-@bot.message_handler(commands=['model'])
+@bot.message_handler(commands=["model"])
+@with_user_check(bot)
 def handle_model(message):
     """Обработчик команды /model - переключить модель"""
     chat_id = message.chat.id
@@ -192,6 +247,7 @@ def handle_model(message):
             "/model gigachat\n"
             "/model openrouter\n"
             "/model reasoning\n"
+            "/model openai\n"
             "/model yandexgpt\n"
             "/model ollama\n\n"
             "Используй /models чтобы увидеть список доступных моделей"
@@ -247,7 +303,8 @@ def handle_model(message):
         bot.send_message(chat_id, "❌ Ошибка при переключении модели")
 
 
-@bot.message_handler(commands=['voice'])
+@bot.message_handler(commands=["voice"])
+@with_user_check(bot)
 def handle_voice(message):
     """
     Обработчик команды /voice — управление голосовыми ответами.
@@ -348,7 +405,161 @@ def handle_voice(message):
         )
 
 
+def _mode_keyboard(current_mode: str) -> types.InlineKeyboardMarkup:
+    kb = types.InlineKeyboardMarkup(row_width=1)
+    chat_mark = "✅ " if current_mode == "chat" else ""
+    single_mark = "✅ " if current_mode == "single" else ""
+    kb.add(types.InlineKeyboardButton(
+        f"{chat_mark}💬 Чат (с памятью)", callback_data="ctx_mode_chat"
+    ))
+    kb.add(types.InlineKeyboardButton(
+        f"{single_mark}💡 Вопрос-ответ (без памяти)", callback_data="ctx_mode_single"
+    ))
+    return kb
+
+
+def _clear_confirm_keyboard(user_id: int) -> types.InlineKeyboardMarkup:
+    kb = types.InlineKeyboardMarkup(row_width=2)
+    kb.add(
+        types.InlineKeyboardButton("✅ Да, очистить", callback_data=f"ctx_clear_yes_{user_id}"),
+        types.InlineKeyboardButton("❌ Нет, оставить", callback_data=f"ctx_clear_no_{user_id}"),
+    )
+    return kb
+
+
+@bot.message_handler(commands=["mode"])
+@with_user_check(bot)
+def handle_mode(message):
+    """Обработчик команды /mode — переключение режима разговора."""
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+    parts = message.text.split()
+
+    if len(parts) >= 2:
+        arg = parts[1].lower()
+        if arg == "chat":
+            ctx_svc.set_mode(user_id, "chat")
+            bot.send_message(
+                chat_id,
+                "💬 Режим переключён на <b>Чат (с памятью)</b>.\n"
+                "Я буду помнить нашу беседу. Чтобы начать с чистого листа — /reset",
+                parse_mode="HTML",
+            )
+            return
+        if arg in ("single", "qa"):
+            ctx_svc.set_mode(user_id, "single")
+            bot.send_message(chat_id, "💡 Режим переключён на <b>Вопрос-ответ</b>. Каждый запрос — независимый.", parse_mode="HTML")
+            return
+
+    current = ctx_svc.get_mode(user_id)
+    mode_label = "💬 Чат (с памятью)" if current == "chat" else "💡 Вопрос-ответ (без памяти)"
+    msg_count = ctx_svc.get_message_count(user_id) if current == "chat" else 0
+    text = (
+        f"🔀 <b>Режим разговора</b>\n\n"
+        f"Сейчас: {mode_label}\n"
+    )
+    if current == "chat" and msg_count > 0:
+        text += f"Сохранено реплик: {msg_count}\n"
+    text += "\nВыбери режим:"
+    bot.send_message(chat_id, text, parse_mode="HTML", reply_markup=_mode_keyboard(current))
+
+
+@bot.callback_query_handler(func=lambda c: c.data in ("ctx_mode_chat", "ctx_mode_single"))
+def callback_mode(call):
+    user_id = call.from_user.id
+    new_mode = "chat" if call.data == "ctx_mode_chat" else "single"
+    ctx_svc.set_mode(user_id, new_mode)
+
+    if new_mode == "chat":
+        answer = "💬 Режим: Чат (с памятью). Буду помнить наш разговор!"
+        notice = "Чтобы очистить историю: /reset"
+    else:
+        answer = "💡 Режим: Вопрос-ответ. Каждый запрос независимый."
+        notice = ""
+
+    bot.answer_callback_query(call.id, answer)
+    try:
+        updated_text = (
+            f"🔀 <b>Режим разговора</b>\n\n"
+            f"Выбрано: {'💬 Чат (с памятью)' if new_mode == 'chat' else '💡 Вопрос-ответ (без памяти)'}\n"
+            + (f"\n{notice}" if notice else "")
+        )
+        bot.edit_message_text(
+            updated_text,
+            call.message.chat.id,
+            call.message.message_id,
+            parse_mode="HTML",
+            reply_markup=_mode_keyboard(new_mode),
+        )
+    except Exception:
+        pass
+
+
+@bot.message_handler(commands=["reset", "clear"])
+@with_user_check(bot)
+def handle_reset(message):
+    """Обработчик команд /reset и /clear — очистка истории разговора."""
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+
+    current_mode = ctx_svc.get_mode(user_id)
+    msg_count = ctx_svc.get_message_count(user_id)
+
+    if current_mode == "single" and msg_count == 0:
+        bot.send_message(chat_id, "ℹ️ Ты в режиме <b>Вопрос-ответ</b> — история и так не сохраняется.", parse_mode="HTML")
+        return
+
+    if msg_count == 0:
+        bot.send_message(chat_id, "ℹ️ История разговора уже пуста.")
+        return
+
+    bot.send_message(
+        chat_id,
+        f"🗑 Очистить историю разговора? ({msg_count} реплик)\n"
+        "Это действие нельзя отменить.",
+        reply_markup=_clear_confirm_keyboard(user_id),
+    )
+
+
+@bot.callback_query_handler(func=lambda c: c.data.startswith("ctx_clear_"))
+def callback_clear(call):
+    parts = call.data.split("_")
+    action = parts[2]  # "yes" or "no"
+    try:
+        owner_id = int(parts[3])
+    except (IndexError, ValueError):
+        bot.answer_callback_query(call.id, "Ошибка.")
+        return
+
+    if call.from_user.id != owner_id:
+        bot.answer_callback_query(call.id, "Это не твоя кнопка.", show_alert=True)
+        return
+
+    if action == "yes":
+        ctx_svc.clear_context(call.from_user.id)
+        bot.answer_callback_query(call.id, "История очищена.")
+        try:
+            bot.edit_message_text(
+                "✅ История разговора очищена. Начинаем с чистого листа!",
+                call.message.chat.id,
+                call.message.message_id,
+            )
+        except Exception:
+            pass
+    else:
+        bot.answer_callback_query(call.id, "Отмена.")
+        try:
+            bot.edit_message_text(
+                "❌ Очистка отменена. История сохранена.",
+                call.message.chat.id,
+                call.message.message_id,
+            )
+        except Exception:
+            pass
+
+
 @bot.message_handler(func=lambda message: message.text is not None)
+@with_user_check(bot)
 def handle_text_message(message):
     """
     Обработчик текстовых сообщений от пользователей.
@@ -364,10 +575,36 @@ def handle_text_message(message):
     # Пропускаем команды (они обрабатываются отдельными хендлерами)
     if user_message.startswith('/'):
         return
-    
+
+    # Maintenance mode: блокируем запросы обычных пользователей (админы проходят)
+    maintenance = get_setting("maintenance_mode", False)
+    if isinstance(maintenance, bool):
+        is_maintenance = maintenance
+    else:
+        is_maintenance = str(maintenance).lower() in ("true", "1", "yes")
+    if is_maintenance:
+        role_weight = getattr(message, "_user", None) and message._user.get("role_weight") or 0
+        if role_weight < 100:
+            bot.send_message(
+                chat_id,
+                "🔧 Бот временно на техническом обслуживании. Попробуйте позже.",
+            )
+            return
+
+    # Проверка лимитов
+    from services.limiter import check_limits
+
+    allowed, limit_reason = check_limits(user_id)
+    if not allowed:
+        bot.send_message(chat_id, limit_reason)
+        return
+
     try:
-        # Получаем выбранную модель пользователя
         selected_model = get_user_model(user_id)
+        context_mode = ctx_svc.get_mode(user_id)
+
+        # Fetch conversation history when in chat mode
+        history = ctx_svc.get_history(user_id) if context_mode == "chat" else []
 
         request_id = uuid.uuid4().hex
         logger.info(
@@ -377,17 +614,24 @@ def handle_text_message(message):
                 "request_id": request_id,
                 "user_id_hash": uid_hash,
                 "selected_model": selected_model,
+                "context_mode": context_mode,
+                "history_len": len(history),
                 **text_meta(user_message),
             },
         )
-        
-        # Отправляем сообщение в выбранную модель и получаем ответ
+
         bot_response = get_chat_response(
             user_message,
             model=selected_model,
+            history=history,
             request_id=request_id,
             user_id_hash=uid_hash,
+            telegram_id=user_id,
         )
+
+        # Persist turn to context when in chat mode
+        if context_mode == "chat":
+            ctx_svc.add_turn(user_id, user_message, bot_response)
 
         logger.info(
             "user_message_answered",
@@ -399,11 +643,10 @@ def handle_text_message(message):
                 "reply_len": len(bot_response or ""),
             },
         )
-        
-        # Отправляем ответ пользователю (с разбиением, если текст длинный)
+
         send_long_message(chat_id, bot_response)
 
-        # Отправляем голосовое сообщение, если озвучка включена
+        # TTS voice response if enabled
         if is_voice_enabled(user_id):
             try:
                 voice_key = get_user_voice(user_id)
@@ -430,15 +673,16 @@ def handle_text_message(message):
                         "error": str(tts_err)[:200],
                     },
                 )
-                bot.send_message(
-                    chat_id,
-                    f"🔇 Не удалось озвучить ответ: {tts_err}",
-                )
+                bot.send_message(chat_id, f"🔇 Не удалось озвучить ответ: {tts_err}")
 
-        # Отправляем краткое напоминание о том, что контекст не сохраняется
-        context_notice = "ℹ️ <i>Контекст не сохраняется. Каждое сообщение обрабатывается отдельно.</i>"
-        bot.send_message(chat_id, context_notice, parse_mode="HTML")
-        
+        # Context mode hint (only in single/stateless mode — show briefly as footer)
+        if context_mode == "single":
+            bot.send_message(
+                chat_id,
+                "ℹ️ <i>Режим: Вопрос-ответ. Память не сохраняется. Переключи /mode чтобы включить чат.</i>",
+                parse_mode="HTML",
+            )
+
     except Exception as e:
         logger.exception(
             "handle_message_failed",

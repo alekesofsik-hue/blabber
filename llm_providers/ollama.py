@@ -20,6 +20,7 @@ import os
 from typing import Any, Dict, Optional
 
 from dotenv import load_dotenv
+from services.config_registry import get_setting
 
 load_dotenv()
 
@@ -41,16 +42,16 @@ def _build_options(kwargs: Dict[str, Any]) -> Dict[str, Any]:
     """
     # Важно для слабого CPU: по умолчанию ограничиваем длину ответа,
     # иначе "балабол" может генерировать слишком долго и клиент словит timeout.
-    env_num_predict = os.getenv("OLLAMA_NUM_PREDICT")
+    env_num_predict = get_setting("ollama_num_predict", env_key="OLLAMA_NUM_PREDICT")
     try:
-        env_num_predict_int = int(env_num_predict) if env_num_predict else None
-    except ValueError:
+        env_num_predict_int = int(env_num_predict) if env_num_predict is not None else None
+    except (ValueError, TypeError):
         env_num_predict_int = None
 
-    env_num_ctx = os.getenv("OLLAMA_NUM_CTX")
+    env_num_ctx = get_setting("ollama_num_ctx", env_key="OLLAMA_NUM_CTX")
     try:
-        env_num_ctx_int = int(env_num_ctx) if env_num_ctx else None
-    except ValueError:
+        env_num_ctx_int = int(env_num_ctx) if env_num_ctx is not None else None
+    except (ValueError, TypeError):
         env_num_ctx_int = None
 
     options = {
@@ -84,20 +85,24 @@ def get_response(
             - num_predict: ограничение длины ответа (токены)
             - num_ctx: размер контекста
             - top_p/top_k/repeat_penalty/seed: доп. параметры sampling
+            - history: список {"role", "content"} для контекста диалога
 
     Returns:
         Ответ модели (str)
     """
-    base_url = kwargs.get("base_url") or os.getenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434")
-    model = kwargs.get("model") or os.getenv("OLLAMA_MODEL", "gemma2:2b-instruct-q4_K_M")
-    timeout = float(kwargs.get("timeout") or os.getenv("OLLAMA_TIMEOUT", "180"))
+    base_url = kwargs.get("base_url") or get_setting("ollama_base_url", "http://127.0.0.1:11434", env_key="OLLAMA_BASE_URL")
+    model = kwargs.get("model") or get_setting("ollama_model", "gemma2:2b-instruct-q4_K_M", env_key="OLLAMA_MODEL")
+    timeout = float(kwargs.get("timeout") or get_setting("ollama_timeout", "180", env_key="OLLAMA_TIMEOUT"))
 
     if httpx is None and requests is None:
         raise RuntimeError("Для Ollama нужен httpx или requests. Установите: pip install httpx")
 
+    history: list = kwargs.get("history") or []
+
     messages = []
     if system_message:
         messages.append({"role": "system", "content": system_message})
+    messages.extend(history)
     messages.append({"role": "user", "content": message})
 
     payload: Dict[str, Any] = {
