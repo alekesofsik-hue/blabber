@@ -69,6 +69,7 @@ def get_chat_response(
     model: str = 'openrouter',
     *,
     history: list | None = None,
+    system_message: str | None = None,
     request_id: str | None = None,
     user_id_hash: str | None = None,
     telegram_id: int | None = None,
@@ -80,6 +81,7 @@ def get_chat_response(
         user_message: Сообщение от пользователя
         model: Модель для генерации
         history: Список {"role", "content"} — история диалога для контекста (None = без контекста)
+        system_message: Системный промпт (если None — используется DEFAULT_SYSTEM_MESSAGE)
         request_id: ID запроса для логирования
         user_id_hash: Хеш telegram_id для логирования
         telegram_id: Telegram ID для записи usage
@@ -91,7 +93,7 @@ def get_chat_response(
         ValueError: Если указана неизвестная модель
         Exception: При ошибке обращения к API
     """
-    system_message = DEFAULT_SYSTEM_MESSAGE
+    system_message = system_message or DEFAULT_SYSTEM_MESSAGE
     logger = logging.getLogger("blabber")
     t0 = time.monotonic()
     ctx = history or []

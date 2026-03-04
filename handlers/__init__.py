@@ -3,5 +3,11 @@ Handlers — message and callback handlers for Blabber bot.
 """
 
 from handlers.admin_commands import register_admin_handlers
+from handlers.profile_commands import register_profile_handlers
+from handlers.knowledge_commands import register_knowledge_handlers
 
-__all__ = ["register_admin_handlers"]
+__all__ = [
+    "register_admin_handlers",
+    "register_profile_handlers",
+    "register_knowledge_handlers",
+]

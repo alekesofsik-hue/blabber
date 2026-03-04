@@ -5,6 +5,7 @@
 - выбор LLM-модели для каждого пользователя
 - включение/выключение голосовых ответов (TTS)
 - выбранный голос TTS
+- включение/выключение базы знаний (RAG)
 """
 
 from __future__ import annotations
@@ -114,4 +115,22 @@ def set_user_voice(user_id: int, voice_key: str) -> bool:
         user_voice_choice[user_id] = voice_key
         return True
     return False
+
+
+# ────────────────────── База знаний (RAG) ──────────────────────
+
+# {user_id: True/False}  — off by default until user uploads a document
+_user_kb_enabled: Dict[int, bool] = {}
+
+DEFAULT_KB_ENABLED = False
+
+
+def is_kb_enabled(user_id: int) -> bool:
+    """Проверить, включена ли база знаний для пользователя."""
+    return _user_kb_enabled.get(user_id, DEFAULT_KB_ENABLED)
+
+
+def set_kb_enabled(user_id: int, enabled: bool) -> None:
+    """Включить или выключить базу знаний для пользователя."""
+    _user_kb_enabled[user_id] = enabled
 

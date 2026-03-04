@@ -10,11 +10,12 @@ import telebot
 from telebot import types
 import requests
 from dotenv import load_dotenv
-from utils import get_chat_response
+from utils import get_chat_response, DEFAULT_SYSTEM_MESSAGE
 from user_storage import (
     get_user_model, set_user_model, get_available_models,
     is_voice_enabled, set_voice_enabled,
     get_user_voice, set_user_voice,
+    is_kb_enabled,
 )
 from telemetry import setup_telemetry, text_meta, user_id_hash
 from tts import synthesize_voice, get_available_voices
@@ -22,6 +23,8 @@ from database import init_db
 from middleware.auth import with_user_check
 from services.config_registry import get_config_registry, get_setting
 import services.context_service as ctx_svc
+import services.profile_service as profile_svc
+import services.knowledge_service as kb_svc
 
 
 # Загружаем переменные окружения из .env файла
@@ -68,12 +71,43 @@ if _DB_AVAILABLE:
         )
 
 # Регистрация admin-хендлеров (до остальных, чтобы pending перехватывал сообщения)
-from handlers import register_admin_handlers
+from handlers import register_admin_handlers, register_profile_handlers, register_knowledge_handlers
 
 register_admin_handlers(bot)
+register_profile_handlers(bot)
+register_knowledge_handlers(bot)
 
 # Лимит Telegram на длину одного сообщения
 TG_MSG_LIMIT = 4096
+
+
+def _build_system_message(has_profile: bool, has_kb_context: bool) -> str:
+    """
+    Build the adaptive system message for the current request.
+
+    Base persona: balabool — chatty, witty, friendly.
+    Extra guardrails activate only when external memory is injected,
+    so the fun personality is preserved for ordinary conversation.
+    """
+    msg = DEFAULT_SYSTEM_MESSAGE
+
+    if has_profile:
+        msg += (
+            "\n\nВажно: тебе переданы личные факты о собеседнике. "
+            "Учитывай их в ответе естественно — не зачитывай список вслух "
+            "и не говори «я помню о тебе то-то». Просто используй как контекст."
+        )
+
+    if has_kb_context:
+        msg += (
+            "\n\nВажно: в этом запросе тебе переданы факты из базы знаний собеседника "
+            "(раздел «[Факты из базы знаний]»). "
+            "Используй их точно — не выдумывай то, чего там нет. "
+            "Если ответа в базе нет — честно скажи, что не нашёл. "
+            "Шутить и болтать можно, главное — факты не искажай."
+        )
+
+    return msg
 
 
 def _split_text(text: str, limit: int = TG_MSG_LIMIT) -> list[str]:
@@ -144,6 +178,8 @@ def handle_start(message):
         "/mode — режим разговора (с памятью / без памяти)\n"
         "/reset — очистить историю\n"
         "/voice — управление озвучкой\n"
+        "/remember — запомни факт обо мне\n"
+        "/kb — база знаний (загрузи документ!)\n"
         "/help — полная справка\n\n"
         f"Модель: {get_available_models().get(get_user_model(user_id), 'неизвестна')}"
     )
@@ -193,6 +229,15 @@ def handle_help(message):
         "   /voice off — выключить\n"
         "   /voice alena — женский (Алёна)\n"
         "   /voice filipp — мужской (Филипп)\n\n"
+        "🧠 Долгосрочная память:\n"
+        "/remember <факт> — запомни кое-что обо мне\n"
+        "   Пример: /remember Меня зовут Алексей\n"
+        "/profile — посмотреть и удалить сохранённые факты\n\n"
+        "📚 База знаний (RAG):\n"
+        "/kb — статус и управление базой знаний\n"
+        "   /kb on / /kb off — включить / выключить\n"
+        "   /kb clear — удалить все документы\n"
+        "Пришли файл (TXT, PDF, DOCX, MD) — добавится автоматически!\n\n"
         "/help - показать эту справку\n\n"
         "Просто напиши мне что-нибудь, и я отвечу как балабол! 😊"
     )
@@ -603,8 +648,28 @@ def handle_text_message(message):
         selected_model = get_user_model(user_id)
         context_mode = ctx_svc.get_mode(user_id)
 
-        # Fetch conversation history when in chat mode
+        # ── Short memory (C): rolling conversation history ────────────────────
         history = ctx_svc.get_history(user_id) if context_mode == "chat" else []
+
+        # ── Long memory D: personal profile facts ─────────────────────────────
+        profile_ctx = profile_svc.build_profile_context(user_id)
+        if profile_ctx:
+            # Prepend before chat history so it's "background knowledge"
+            history = [{"role": "assistant", "content": profile_ctx}] + history
+
+        # ── Long memory C: RAG knowledge base ─────────────────────────────────
+        rag_ctx: str | None = None
+        if is_kb_enabled(user_id):
+            rag_ctx = kb_svc.build_kb_context(user_id, user_message)
+            if rag_ctx:
+                # Append after history — closest to the user's question
+                history = history + [{"role": "assistant", "content": rag_ctx}]
+
+        # ── Adaptive system message ────────────────────────────────────────────
+        system_msg = _build_system_message(
+            has_profile=profile_ctx is not None,
+            has_kb_context=rag_ctx is not None,
+        )
 
         request_id = uuid.uuid4().hex
         logger.info(
@@ -616,6 +681,8 @@ def handle_text_message(message):
                 "selected_model": selected_model,
                 "context_mode": context_mode,
                 "history_len": len(history),
+                "has_profile": profile_ctx is not None,
+                "has_rag": rag_ctx is not None,
                 **text_meta(user_message),
             },
         )
@@ -624,6 +691,7 @@ def handle_text_message(message):
             user_message,
             model=selected_model,
             history=history,
+            system_message=system_msg,
             request_id=request_id,
             user_id_hash=uid_hash,
             telegram_id=user_id,
