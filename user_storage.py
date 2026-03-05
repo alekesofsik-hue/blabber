@@ -6,16 +6,15 @@
 - включение/выключение голосовых ответов (TTS)
 - выбранный голос TTS
 - включение/выключение базы знаний (RAG)
+- включение/выключение agent-режима ("Балабол-новостник")
 """
 
 from __future__ import annotations
 
-from typing import Dict
-
 # ────────────────────── LLM-модели ──────────────────────
 
 # Словарь для хранения выбора модели: {user_id: model_key}
-user_models: Dict[int, str] = {}
+user_models: dict[int, str] = {}
 
 # Доступные модели
 AVAILABLE_MODELS = {
@@ -60,7 +59,7 @@ def set_user_model(user_id: int, model: str) -> bool:
     return False
 
 
-def get_available_models() -> Dict[str, str]:
+def get_available_models() -> dict[str, str]:
     """
     Получить список доступных моделей.
 
@@ -73,10 +72,10 @@ def get_available_models() -> Dict[str, str]:
 # ────────────────────── Голосовые ответы (TTS) ──────────────────────
 
 # {user_id: True/False}
-user_voice_enabled: Dict[int, bool] = {}
+user_voice_enabled: dict[int, bool] = {}
 
 # {user_id: voice_key}  — 'svetlana' или 'dmitry'
-user_voice_choice: Dict[int, str] = {}
+user_voice_choice: dict[int, str] = {}
 
 DEFAULT_VOICE_ENABLED = False
 DEFAULT_VOICE = "alena"
@@ -120,7 +119,7 @@ def set_user_voice(user_id: int, voice_key: str) -> bool:
 # ────────────────────── База знаний (RAG) ──────────────────────
 
 # {user_id: True/False}  — off by default until user uploads a document
-_user_kb_enabled: Dict[int, bool] = {}
+_user_kb_enabled: dict[int, bool] = {}
 
 DEFAULT_KB_ENABLED = False
 
@@ -133,4 +132,22 @@ def is_kb_enabled(user_id: int) -> bool:
 def set_kb_enabled(user_id: int, enabled: bool) -> None:
     """Включить или выключить базу знаний для пользователя."""
     _user_kb_enabled[user_id] = enabled
+
+
+# ────────────────────── Agent-режим ("Балабол-новостник") ──────────────────────
+
+# {user_id: True/False}  — off by default
+_user_agent_enabled: dict[int, bool] = {}
+
+DEFAULT_AGENT_ENABLED = False
+
+
+def is_agent_enabled(user_id: int) -> bool:
+    """Проверить, включён ли agent-режим для пользователя."""
+    return _user_agent_enabled.get(user_id, DEFAULT_AGENT_ENABLED)
+
+
+def set_agent_enabled(user_id: int, enabled: bool) -> None:
+    """Включить или выключить agent-режим для пользователя."""
+    _user_agent_enabled[user_id] = enabled
 

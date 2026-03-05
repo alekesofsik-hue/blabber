@@ -6,26 +6,32 @@ import logging
 import os
 import time
 import uuid
-import telebot
-from telebot import types
+
 import requests
+import telebot
 from dotenv import load_dotenv
-from utils import get_chat_response, DEFAULT_SYSTEM_MESSAGE
-from user_storage import (
-    get_user_model, set_user_model, get_available_models,
-    is_voice_enabled, set_voice_enabled,
-    get_user_voice, set_user_voice,
-    is_kb_enabled,
-)
-from telemetry import setup_telemetry, text_meta, user_id_hash
-from tts import synthesize_voice, get_available_voices
+from telebot import types
+
+import services.context_service as ctx_svc
+import services.knowledge_service as kb_svc
+import services.profile_service as profile_svc
 from database import init_db
 from middleware.auth import with_user_check
 from services.config_registry import get_config_registry, get_setting
-import services.context_service as ctx_svc
-import services.profile_service as profile_svc
-import services.knowledge_service as kb_svc
-
+from telemetry import setup_telemetry, text_meta, user_id_hash
+from tts import get_available_voices, synthesize_voice
+from user_storage import (
+    get_available_models,
+    get_user_model,
+    get_user_voice,
+    is_agent_enabled,
+    is_kb_enabled,
+    is_voice_enabled,
+    set_user_model,
+    set_user_voice,
+    set_voice_enabled,
+)
+from utils import DEFAULT_SYSTEM_MESSAGE, get_chat_response
 
 # Загружаем переменные окружения из .env файла
 load_dotenv()
@@ -70,12 +76,18 @@ if _DB_AVAILABLE:
             },
         )
 
-# Регистрация admin-хендлеров (до остальных, чтобы pending перехватывал сообщения)
-from handlers import register_admin_handlers, register_profile_handlers, register_knowledge_handlers
+# Регистрация хендлеров (до остальных, чтобы pending перехватывал сообщения)
+from handlers import (  # noqa: E402
+    register_admin_handlers,
+    register_agent_handlers,
+    register_knowledge_handlers,
+    register_profile_handlers,
+)
 
 register_admin_handlers(bot)
 register_profile_handlers(bot)
 register_knowledge_handlers(bot)
+register_agent_handlers(bot)
 
 # Лимит Telegram на длину одного сообщения
 TG_MSG_LIMIT = 4096
@@ -180,6 +192,7 @@ def handle_start(message):
         "/voice — управление озвучкой\n"
         "/remember — запомни факт обо мне\n"
         "/kb — база знаний (загрузи документ!)\n"
+        "/agent — Балабол-новостник (поиск новостей)\n"
         "/help — полная справка\n\n"
         f"Модель: {get_available_models().get(get_user_model(user_id), 'неизвестна')}"
     )
@@ -238,6 +251,10 @@ def handle_help(message):
         "   /kb on / /kb off — включить / выключить\n"
         "   /kb clear — удалить все документы\n"
         "Пришли файл (TXT, PDF, DOCX, MD) — добавится автоматически!\n\n"
+        "🕵️ Балабол-новостник:\n"
+        "/agent — статус и быстрые кнопки\n"
+        "   /agent on — включить режим (ищу новости сам)\n"
+        "   /agent off — выключить\n\n"
         "/help - показать эту справку\n\n"
         "Просто напиши мне что-нибудь, и я отвечу как балабол! 😊"
     )
@@ -642,6 +659,37 @@ def handle_text_message(message):
     allowed, limit_reason = check_limits(user_id)
     if not allowed:
         bot.send_message(chat_id, limit_reason)
+        return
+
+    # ── Agent mode: delegate to "Балабол-новостник" agent loop ───────────────
+    if is_agent_enabled(user_id):
+        from services.agent_runner import run_agent
+
+        bot.send_chat_action(chat_id, "typing")
+        try:
+            agent_response = run_agent(user_message, user_id)
+        except Exception as agent_err:
+            logger.exception(
+                "agent_run_failed",
+                extra={"event": "agent_run_failed", "user_id_hash": uid_hash,
+                       "error_type": type(agent_err).__name__},
+            )
+            agent_response = f"Агент сломался: {agent_err}"
+
+        send_long_message(
+            chat_id,
+            agent_response,
+            parse_mode="HTML",
+            disable_web_page_preview=True,
+        )
+
+        if is_voice_enabled(user_id):
+            try:
+                voice_key = get_user_voice(user_id)
+                ogg_data = synthesize_voice(agent_response, voice_key=voice_key)
+                bot.send_voice(chat_id, ogg_data)
+            except Exception:
+                pass
         return
 
     try:
