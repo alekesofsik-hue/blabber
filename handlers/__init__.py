@@ -7,6 +7,7 @@ from handlers.agent_commands import register_agent_handlers
 from handlers.knowledge_commands import register_knowledge_handlers
 from handlers.persona_commands import register_persona_handlers
 from handlers.profile_commands import register_profile_handlers
+from handlers.report_commands import register_report_handlers
 
 __all__ = [
     "register_admin_handlers",
@@ -14,4 +15,5 @@ __all__ = [
     "register_knowledge_handlers",
     "register_agent_handlers",
     "register_persona_handlers",
+    "register_report_handlers",
 ]

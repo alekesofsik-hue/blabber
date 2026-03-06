@@ -85,6 +85,7 @@ from handlers import (  # noqa: E402
     register_knowledge_handlers,
     register_persona_handlers,
     register_profile_handlers,
+    register_report_handlers,
 )
 
 register_admin_handlers(bot)
@@ -92,6 +93,7 @@ register_profile_handlers(bot)
 register_knowledge_handlers(bot)
 register_persona_handlers(bot)
 register_agent_handlers(bot)
+register_report_handlers(bot)
 
 # Лимит Telegram на длину одного сообщения
 TG_MSG_LIMIT = 4096
@@ -206,6 +208,7 @@ def handle_start(message):
         "/remember — запомни факт обо мне\n"
         "/kb — база знаний (загрузи документ!)\n"
         "/agent — Балабол-новостник (поиск новостей)\n"
+        "/report — PDF-отчёт по нашему разговору\n"
         "/help — полная справка\n\n"
         f"Модель: {get_available_models().get(get_user_model(user_id), 'неизвестна')}"
     )
@@ -275,6 +278,11 @@ def handle_help(message):
         "/agent — статус и быстрые кнопки\n"
         "   /agent on — включить режим (ищу новости сам)\n"
         "   /agent off — выключить\n\n"
+        "📄 Отчёт по разговору:\n"
+        "/report — сгенерировать PDF-отчёт из истории чата\n"
+        "   /report help — подробная справка\n"
+        "   Требует режима /mode chat и накопленной истории.\n"
+        "   Обложка-картинка добавляется, если настроен OPENAI_API_KEY.\n\n"
         "/help - показать эту справку\n\n"
         "💰 Для OpenAI/OpenRouter показывается стоимость запроса в рублях (по курсу ЦБ РФ).\n\n"
         "Просто напиши мне что-нибудь, и я отвечу как балабол! 😊"

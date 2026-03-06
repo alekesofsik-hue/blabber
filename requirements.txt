@@ -8,3 +8,6 @@ logtail-python>=0.3.0
 # Optional: for knowledge base document parsing
 pypdf>=4.0.0
 python-docx>=1.1.0
+# Report generation (PDF from conversation history)
+jinja2>=3.1.0
+weasyprint>=60.0
