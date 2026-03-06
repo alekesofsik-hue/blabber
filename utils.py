@@ -73,7 +73,7 @@ def get_chat_response(
     request_id: str | None = None,
     user_id_hash: str | None = None,
     telegram_id: int | None = None,
-) -> str:
+) -> tuple[str, float]:
     """
     Получить ответ от выбранной модели с заданным стилем "балабола".
 
@@ -87,7 +87,7 @@ def get_chat_response(
         telegram_id: Telegram ID для записи usage
 
     Returns:
-        Ответ от модели
+        Tuple (ответ от модели, стоимость запроса в USD)
 
     Raises:
         ValueError: Если указана неизвестная модель
@@ -202,7 +202,7 @@ def get_chat_response(
                 "success": True,
             },
         )
-        return result
+        return result, cost_usd
 
     except Exception as e:
         dt_ms = int((time.monotonic() - t0) * 1000)

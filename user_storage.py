@@ -74,7 +74,7 @@ def get_available_models() -> dict[str, str]:
 # {user_id: True/False}
 user_voice_enabled: dict[int, bool] = {}
 
-# {user_id: voice_key}  — 'svetlana' или 'dmitry'
+# {user_id: voice_key}  — 'alena', 'filipp', 'ermil', 'jane', 'omazh', 'zahar', 'marina', ...
 user_voice_choice: dict[int, str] = {}
 
 DEFAULT_VOICE_ENABLED = False

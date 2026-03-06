@@ -1,0 +1,213 @@
+(function ($) {
+  $.create = function (tag, id) {
+    elm = document.createElement(tag.toUpperCase());
+    if (typeof (id) != "undefined") elm.id = id;
+    return $(elm);
+  };
+
+}(jQuery));
+
+$(function () {
+
+  if (window.location.href.indexOf("/editMode/1") > -1 || window.location.href.indexOf("editMode=1") > -1) {
+    return;
+  }
+
+  if (window.location.href.indexOf("lesson/webview") > -1) return;
+
+  const blockWrapper = $(".standard-page-content");
+
+  if (blockWrapper.lenght === 0) return;
+
+  // Search
+  $('#SearchInput').on('keyup', delay(function (e) {
+    if ($(this).val().length > 1) {
+      $('.SearchBlock__left-icon .fa').removeClass('fa-search').addClass('fa-spinner fa-spin');
+      $('.BlockList').fadeOut(200, function () { $(this).remove() });
+      $.getJSON('https://' + window.location.hostname + '/c/sa/search', {
+        searchStr: $(this).val(),
+        ccc: Date.now()
+      }).done(function (json) {
+        console.log(json);
+        if (json.success) {
+          var BlockList = $.create('div').addClass('BlockList')
+          $.each(json.data.blocks, function (i, block) {
+            var BlockList_Row = $.create('div');
+            if (typeof block.text != "undefined") BlockList_Row.addClass('TextBlock').html(block.text);
+            if (typeof block.url != "undefined") {
+              BlockList_Row.addClass('ScreenBlock __large __clickable').append(
+                $.create('div').addClass('ScreenBlock__left').append(
+                  $.create('div').addClass('ScreenBlock__logo').append(function () {
+                    if (block.logo.image !== null)
+                      return $.create('div').addClass('Logo __large').css({
+                        'background-image': 'url(' + block.logo.image + ')',
+                        'background-color': block.logo.bgColor,
+                        'color': block.logo.color
+                      })
+                    else
+                      return $.create('div').addClass('Logo __default __large').html(block.logo.text).css({
+                        'background-color': block.logo.bgColor,
+                        'color': block.logo.color
+                      })
+                  })
+                ),
+                $.create('div').addClass('ScreenBlock__right').append(
+                  $.create('div').addClass('ScreenBlock__right-wrapper').append(function () {
+                    var block_title =
+                      $.create('div').addClass('ScreenBlock__item-title').append(
+                        $.create('div').addClass('ScreenBlock__item-title-left').html(block.title),
+                        $.create('div').addClass('ScreenBlock__item-title-right').append(
+                          $.create('span').addClass('ScreenBlock__item-time')
+                        )
+                      );
+                    if (block.description == null) return block_title;
+                    else return block_title.add($.create('div').addClass('ScreenBlock__description').html(block.description));
+                  })
+                )
+              ).on("click", function () {
+                if (typeof block.onClick !== undefined && block.onClick.type == "navigate") window.location.href = block.onClick.url;
+              });
+            }
+            BlockList.append(BlockList_Row);
+          });
+          $('#SearchInput').after(BlockList);
+          $('.BlockList').fadeIn(200);
+          $('.SearchBlock__left-icon .fa').removeClass('fa-spinner fa-spin').addClass('fa-search');
+          $(document).one('click', function (e) {
+            if (!$(e.target).is('.BlockList') && $(e.target).parents('.BlockList').length == 0) {
+              $('.BlockList').fadeOut(200, function () { $(this).remove() });
+            }
+          });
+        }
+      });
+    }
+  }, 300));
+
+  $('.SearchBlock__clear').on('click', function () {
+    $('#SearchInput').val("");
+  });
+
+
+
+  blockWrapper.prepend(`
+
+<div class="header_block">
+<div class="header-top">
+<div class="container">
+  <div class="row">
+    <div class="logo-wrapper">
+      <img
+        src="https://fs.getcourse.ru/fileservice/file/download/a/256825/sc/48/h/5c325222e7f6e299b803a30c77317ad5.svg"
+        alt="logo" class="desctop">
+
+      <img
+        src="https://fs.getcourse.ru/fileservice/file/download/a/256825/sc/244/h/f3eb476cbbcb36ad0799c44b8084c831.svg"
+        alt="logo" class="mob">
+
+    </div>
+
+    <div class="search-wrapper">
+      <div class="SearchBlock">
+        <input id="SearchInput" type="text" placeholder="Поиск по курсам, модулям, урокам"
+          class="TextInput SearchBlock__input __left-icon">
+        <div class="SearchBlock__clear">
+          <svg width="12" height="12" xmlns="http://www.w3.org/2000/svg" fill-rule="evenodd" clip-rule="evenodd"
+            viewbox="0 0 24 24">
+            <path
+              d="M12 11.293l10.293-10.293.707.707-10.293 10.293 10.293 10.293-.707.707-10.293-10.293-10.293 10.293-.707-.707 10.293-10.293-10.293-10.293.707-.707 10.293 10.293z">
+            </path>
+          </svg>
+        </div>
+        <div class="SearchBlock__left-icon">
+          <i class="fa fa-search"></i>
+        </div>
+      </div>
+    </div>
+
+
+    <a href="/cms/system/contact" class="btn btn_top" target="_blank">
+      <img
+        src="https://fs.getcourse.ru/fileservice/file/download/a/256825/sc/210/h/6e0ca568f3ea739be89683a5315fa48c.svg"
+        alt="logo"><span>Написать в тех. поддержку</span>
+    </a>
+  </div>
+
+
+</div>
+</div>
+
+</div>
+
+`);
+
+});
+
+function delay(callback, ms) {
+  var timer = 0;
+  return function () {
+    var context = this, args = arguments;
+    clearTimeout(timer);
+    timer = setTimeout(function () {
+      callback.apply(context, args);
+    }, ms || 0);
+  };
+}
+
+function insertScriptText(doc, target, script) {
+  var s = doc.createElement("script");
+  s.type = "text/javascript";
+  s.innerHTML = script;
+  target.appendChild(s);
+}
+
+
+$(function () {
+
+  if (window.location.href.indexOf("lesson/webview") > -1) return;
+
+  if (window.location.href.indexOf("/editMode/1") > -1 || window.location.href.indexOf("editMode=1") > -1) {
+    return;
+  }
+
+  $(".gc-main-content > .container").removeClass("container");
+
+
+  $(".center-block").eq(0).addClass("container");
+
+  const $header_lesson = $("<div class='header_lesson'></div>");
+
+
+
+  $(".header_block").append($header_lesson);
+
+
+
+  $header_lesson.append($(".lesson-header-block"));
+
+
+  // header_block
+  const $breadcrumbs = $(`<div class="header_breadcrumbs"></div>`);
+  const $moduleLink = $(".page-header h1 a");
+  $breadcrumbs.append($(".breadcrumb a"));
+
+  $breadcrumbs.append($moduleLink);
+  $header_lesson.prepend($breadcrumbs);
+})
+
+
+
+
+$(()=>{
+
+  const inputStyleBlock = $('.input-style-pole');
+    if (inputStyleBlock.length === 0) return;
+    
+    inputStyleBlock.find('.field-input-block label').addClass('choice-user');
+
+ /* добавление класса к label в момент выбора */
+  inputStyleBlock.find('.field-input-block .choice-user').click(function() {
+	$(this).parents('.field-input-block').find(".choice-user").removeClass('mychoice');
+	$(this).addClass('mychoice');
+  });	
+});
+

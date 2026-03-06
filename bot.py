@@ -12,8 +12,10 @@ import telebot
 from dotenv import load_dotenv
 from telebot import types
 
+import services.cbr_service as cbr_svc
 import services.context_service as ctx_svc
 import services.knowledge_service as kb_svc
+import services.persona_service as persona_svc
 import services.profile_service as profile_svc
 from database import init_db
 from middleware.auth import with_user_check
@@ -81,27 +83,37 @@ from handlers import (  # noqa: E402
     register_admin_handlers,
     register_agent_handlers,
     register_knowledge_handlers,
+    register_persona_handlers,
     register_profile_handlers,
 )
 
 register_admin_handlers(bot)
 register_profile_handlers(bot)
 register_knowledge_handlers(bot)
+register_persona_handlers(bot)
 register_agent_handlers(bot)
 
 # Лимит Telegram на длину одного сообщения
 TG_MSG_LIMIT = 4096
 
 
-def _build_system_message(has_profile: bool, has_kb_context: bool) -> str:
+def _build_system_message(
+    has_profile: bool,
+    has_kb_context: bool,
+    persona_prompt: str | None = None,
+) -> str:
     """
     Build the adaptive system message for the current request.
 
     Base persona: balabool — chatty, witty, friendly.
     Extra guardrails activate only when external memory is injected,
     so the fun personality is preserved for ordinary conversation.
+    If a role persona is set, its system_prompt is appended as a focus layer.
     """
     msg = DEFAULT_SYSTEM_MESSAGE
+
+    if persona_prompt:
+        msg += f"\n\nРоль для этого разговора: {persona_prompt}"
 
     if has_profile:
         msg += (
@@ -187,6 +199,7 @@ def handle_start(message):
         "Ключевые команды:\n"
         "/models — список моделей\n"
         "/model <название> — переключить модель\n"
+        "/role — сменить роль бота (Ассистент, Разработчик, Аналитик…)\n"
         "/mode — режим разговора (с памятью / без памяти)\n"
         "/reset — очистить историю\n"
         "/voice — управление озвучкой\n"
@@ -233,6 +246,13 @@ def handle_help(message):
         "   /model openai\n"
         "   /model yandexgpt\n"
         "   /model ollama\n\n"
+        "🎭 Роль бота:\n"
+        "/role — показать текущую роль и меню выбора\n"
+        "   /role assistant  — Обычный помощник\n"
+        "   /role developer  — Помощник разработчика\n"
+        "   /role analyst    — Аналитик\n"
+        "   /role teacher    — Учитель\n"
+        "   /role writer     — Редактор текстов\n\n"
         "/mode - режим разговора\n"
         "   /mode chat   — Чат (с памятью)\n"
         "   /mode single — Вопрос-ответ (без памяти)\n"
@@ -256,6 +276,7 @@ def handle_help(message):
         "   /agent on — включить режим (ищу новости сам)\n"
         "   /agent off — выключить\n\n"
         "/help - показать эту справку\n\n"
+        "💰 Для OpenAI/OpenRouter показывается стоимость запроса в рублях (по курсу ЦБ РФ).\n\n"
         "Просто напиши мне что-нибудь, и я отвечу как балабол! 😊"
     )
     
@@ -374,8 +395,8 @@ def handle_voice(message):
     /voice          — показать текущее состояние
     /voice on       — включить озвучку
     /voice off      — выключить озвучку
-    /voice svetlana — сменить голос на Светлану (женский)
-    /voice dmitry   — сменить голос на Дмитрия (мужской)
+    /voice alena    — сменить голос на Алёну (женский)
+    /voice filipp   — сменить голос на Филиппа (мужской)
     """
     chat_id = message.chat.id
     user_id = message.from_user.id
@@ -713,10 +734,14 @@ def handle_text_message(message):
                 # Append after history — closest to the user's question
                 history = history + [{"role": "assistant", "content": rag_ctx}]
 
+        # ── Persona (role) ─────────────────────────────────────────────────────
+        persona_addon = persona_svc.build_persona_addon(user_id)
+
         # ── Adaptive system message ────────────────────────────────────────────
         system_msg = _build_system_message(
             has_profile=profile_ctx is not None,
             has_kb_context=rag_ctx is not None,
+            persona_prompt=persona_addon,
         )
 
         request_id = uuid.uuid4().hex
@@ -731,11 +756,12 @@ def handle_text_message(message):
                 "history_len": len(history),
                 "has_profile": profile_ctx is not None,
                 "has_rag": rag_ctx is not None,
+                "persona_role": persona_svc.get_user_role(user_id),
                 **text_meta(user_message),
             },
         )
 
-        bot_response = get_chat_response(
+        bot_response, cost_usd = get_chat_response(
             user_message,
             model=selected_model,
             history=history,
@@ -757,10 +783,20 @@ def handle_text_message(message):
                 "user_id_hash": uid_hash,
                 "selected_model": selected_model,
                 "reply_len": len(bot_response or ""),
+                "cost_usd": round(cost_usd, 6),
             },
         )
 
         send_long_message(chat_id, bot_response)
+
+        # ── Cost footer: show price in RUB if non-zero ─────────────────────────
+        cost_rub_str = cbr_svc.format_cost_rub(cost_usd)
+        if cost_rub_str:
+            bot.send_message(
+                chat_id,
+                f"💰 <i>Стоимость запроса: {cost_rub_str}</i>",
+                parse_mode="HTML",
+            )
 
         # TTS voice response if enabled
         if is_voice_enabled(user_id):

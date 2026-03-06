@@ -1,0 +1,167 @@
+
+
+/* БОКОВАЯ ПАНЕЛЬ */
+
+
+/* Фон панели */
+.gc-account-leftbar {
+  background-color: var(--grayColor);
+}
+
+.gc-account-leftbar li.menu-item.menu-item-marathon {
+  display: none;
+}
+
+.gc-account-leftbar .gc-account-user-menu li {
+  padding: 4px 8px 4px 8px;
+}
+
+.gc-account-leftbar .gc-account-user-menu li a,
+.gc-account-leftbar .gc-account-user-menu li.menu-item-notifications_button_small a {
+  height: 54px;
+  border-radius: 10px;
+  background-color: #ffffff;
+  transition: background-color .2s ease;
+}
+
+.gc-account-leftbar .gc-account-user-menu li a:hover {
+  background-color: rgb(255 255 255 / 60%);
+}
+
+.gc-account-leftbar .gc-account-user-menu li.active a,
+.gc-account-leftbar .gc-account-user-menu li.selected a {
+  background-color: var(--color_1);
+}
+
+/* item-profile */
+.gc-account-leftbar .gc-account-user-menu li.menu-item-profile a {
+  background: none;
+}
+
+.gc-account-leftbar .gc-account-user-menu li.menu-item-profile img {
+  border-radius: 50px;
+}
+
+
+.gc-account-user-menu svg {
+  width: 24px;
+  height: 24px;
+  fill: var(--color_1);
+  position: relative;
+}
+
+.gc-account-leftbar .gc-account-user-menu li.selected svg,
+.gc-account-user-menu li.active svg {
+  fill: #ffffff;
+}
+
+
+
+/* submenu-bar */
+.gc-account-user-submenu-bar h3 {
+  margin: 0;
+  padding: 15px 8px 15px 15px;
+  font-size: 20px;
+  font-weight: 500;
+  color: #ffffff;
+  background-color: var(--color_1);
+}
+
+
+.gc-account-leftbar .gc-account-user-submenu-bar {
+  background-color: var(--grayColor);
+}
+
+
+/* Пункты субменю */
+.gc-account-user-submenu-bar .gc-account-user-submenu li a {
+  padding-left: 15px;
+  font-size: 18px;
+  font-weight: 400;
+  text-transform: initial;
+  color: var(--blackColor);
+  transition: color .2s ease;
+}
+
+.gc-account-user-submenu-bar .gc-account-user-submenu li a:hover {
+  color: var(--color_1);
+  background-color: transparent;
+}
+
+.gc-account-user-submenu-bar .gc-account-user-submenu li.menu-item-trainings a {
+    font-size: 0;
+}
+
+.gc-account-user-submenu-bar .gc-account-user-submenu li.menu-item-trainings a::before {
+    content: "Курсы";
+    font-size: 18px;
+}
+
+.gc-account-user-submenu-bar .gc-account-user-submenu li.menu-item-schedule a {
+    display: none;
+}
+
+
+/* notify-count */
+.gc-account-leftbar .notify-count,
+.gc-account-leftbar .gc-account-user-menu li.menu-item-notifications .notify-count {
+  color: #ffffff;
+  padding: 2px 4px;
+  width: auto;
+  min-width: 20px;
+  background-color: var(--color_1);
+}
+
+
+
+.gc-account-leftbar .active .notify-count,
+.gc-account-leftbar .selected .notify-count {
+  background-color: #ffffff;
+  color: var(--color_1);
+}
+
+.gc-account-leftbar .gc-account-user-submenu-bar div.user-balance {
+  margin-top: 5px;
+}
+
+
+/* Прячем старые иконки */
+
+.gc-account-leftbar li:not(.menu-item-profile) img.menu-item-icon {
+  display: none;
+}
+
+
+.gc-account-leftbar .gc-account-user-submenu-bar li.menu-item-accountSettings a,
+.gc-account-leftbar .gc-account-user-submenu-bar li.menu-item-help a {
+  border-top: none !important;
+}
+
+
+.gc-page-nav-items-menu a.toggler-item {
+  color: #333;
+  background-color: var(--grayColor);
+}
+
+/* Фон панели на мобильной версии */
+
+@media (max-width: 768px) {
+
+  .gc-account-leftbar .gc-account-user-menu,
+  .gc-account-leftbar .toggle-link {
+    background-color: var(--grayColor);
+  }
+}
+
+
+
+
+/* Шрифт */
+.gc-account-leftbar .notify-count,
+.gc-account-user-submenu-bar,
+.gc-account-user-submenu-bar h3,
+.gc-account-user-submenu-bar ul>li a {
+  font-family: var(--mainFont);
+}
+
+/*</ БОКОВАЯ ПАНЕЛЬ */

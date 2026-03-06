@@ -14,7 +14,7 @@
 - **Sprint 7:** Testing & Polish (pytest, graceful degradation, rate limiting, документация)
 - **OpenAI:** Интеграция модели GPT-4o/GPT-4o-mini
 - **Контекст диалога:** Режимы Чат / Вопрос-ответ (`/mode`), `/reset` и `/clear`, окно 10 реплик + summary, TTL 60 мин
-- **Стоимость (шаг 1):** Реальные токены из OpenAI/OpenRouter API, расчёт cost_usd в `usage_logs`
+- **Стоимость (шаг 1):** Реальные токены из OpenAI/OpenRouter API, расчёт cost_usd в `usage_logs` + вывод стоимости в рублях (курс ЦБ РФ) в чат
 - **Память D — Профиль пользователя:** `/remember`, `/profile` с inline-удалением; факты хранятся в SQLite и инжектируются в каждый запрос к LLM (миграция `005_user_profile.sql`)
 - **Память C — База знаний (RAG):** загрузка TXT/PDF/DOCX/MD, чанкинг, `/kb` с inline-управлением; адаптивный system_message (миграция `006_knowledge_base.sql`)
 - **Гибридный поиск (BM25 + Embeddings):** чанки хранят embedding BLOB (`007_kb_embedding.sql`); retrieval: BM25 shortlist → embedding rerank (α=0.3 BM25 + 0.7 cosine); graceful degradation на BM25-only если нет `OPENAI_API_KEY`
@@ -37,14 +37,14 @@
 
 **Контекст:** Сейчас прайс захардкожен в `utils._PRICE_TABLE`. Реальные токены берутся только из OpenAI и OpenRouter. Для GigaChat, Yandex GPT, Ollama — cost = 0.
 
-**Миграция:** `008_pricing_config.sql` (005–007 заняты памятью)
+**Миграция:** `009_pricing_config.sql` (005–007 заняты памятью; 008 занята ролью/персоной `/role`)
 
 ### Задачи
 
 - [ ] Добавить в `config` параметр `pricing_table` (JSON)
   - Формат: `{"provider/model": {"input_per_1k": float, "output_per_1k": float}}`
   - Fallback на текущий `_PRICE_TABLE` если ключ пуст
-- [ ] Миграция `008_pricing_config.sql` — INSERT OR IGNORE `pricing_table`
+- [ ] Миграция `009_pricing_config.sql` — INSERT OR IGNORE `pricing_table`
   - **Примечание:** 007 занята `007_kb_embedding.sql` (embedding BLOB для гибридного поиска)
 - [ ] В `utils.py`: читать прайс из `get_setting("pricing_table")`, парсить JSON
 - [ ] Расширить расчёт cost для провайдеров, где API возвращает usage:
@@ -71,7 +71,7 @@
 ### Задачи
 
 - [ ] `handlers/user_commands.py` — вынос из `bot.py`:
-  - [ ] `/start`, `/help`, `/models`, `/model`, `/voice`, `/mode`, `/reset`, `/clear`
+  - [ ] `/start`, `/help`, `/models`, `/model`, `/role`, `/voice`, `/mode`, `/reset`, `/clear`
   - [ ] Функция `register_user_handlers(bot)`
 - [ ] `handlers/chat_handler.py` — вынос обработки текстовых сообщений:
   - [ ] Проверка maintenance_mode, лимитов
