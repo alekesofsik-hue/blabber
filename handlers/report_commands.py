@@ -54,14 +54,25 @@ def register_report_handlers(bot: telebot.TeleBot) -> None:
         mode = ctx_svc.get_mode(user_id)
         count = ctx_svc.get_message_count(user_id)
 
-        if mode != "chat" or count == 0:
+        if mode != "chat":
             bot.send_message(
                 chat_id,
-                "💬 <b>История разговора пуста.</b>\n\n"
+                "💬 <b>Режим чата не включён.</b>\n\n"
                 "Чтобы создать отчёт, нужно:\n"
                 "1. Включить режим чата: <code>/mode chat</code>\n"
                 "2. Поговорить со мной\n"
                 "3. Написать <code>/report</code>\n\n"
+                "Подробнее: <code>/report help</code>",
+                parse_mode="HTML",
+            )
+            return
+
+        if count == 0:
+            bot.send_message(
+                chat_id,
+                "💬 <b>История разговора пуста.</b>\n\n"
+                "Поговори со мной в режиме <code>/mode chat</code>, "
+                "а затем напиши <code>/report</code>.\n\n"
                 "Подробнее: <code>/report help</code>",
                 parse_mode="HTML",
             )
