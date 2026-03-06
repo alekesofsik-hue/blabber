@@ -1,0 +1,260 @@
+{
+  "user_id": 1306412208,
+  "sessions": [
+    {
+      "ts": "2026-03-05T13:04:48.087419+00:00",
+      "user_message": "новости про термоядерный синтез",
+      "model": "gpt-4o-mini",
+      "steps": [
+        {
+          "step": 0,
+          "type": "tool_calls",
+          "calls": [
+            {
+              "tool": "rss_search",
+              "args": "{\"query\":\"термоядерный синтез\",\"max_results\":5}",
+              "result_len": 27,
+              "sources": []
+            }
+          ]
+        },
+        {
+          "step": 1,
+          "type": "final",
+          "answer_len": 525
+        }
+      ],
+      "sources": [],
+      "final": "О, термоядерный синтез! Это такая фантастическая штука, что даже сам Илон Маск, похоже, ждет новостей, как будто это новый выпуск его любимого сериала. Но вот, к сожалению, свежих новостей на эту тему сейчас нет. \n\nМожет, они все спрятались в реакторах, жаждущие света! Или, возможно, ученые слишком заняты, чтобы писать статьи, ведь они, как мы знаем, могут быть поглощены своей работой, как черная дыра! \n\nЕсли у тебя есть другие темы, которые ты хотел бы обсудить, я готов к разговору — как термоядерный реактор к запуску!",
+      "duration_ms": 19778
+    },
+    {
+      "ts": "2026-03-05T13:05:35.872158+00:00",
+      "user_message": "Поищи последние новости",
+      "model": "gpt-4o-mini",
+      "steps": [
+        {
+          "step": 0,
+          "type": "tool_calls",
+          "calls": [
+            {
+              "tool": "top_headlines",
+              "args": "{\"source_key\": \"lenta\", \"max_results\": 5}",
+              "result_len": 1385,
+              "sources": [
+                {
+                  "title": "Названа подоплека приговора бывшему замкомандующего военным округом России",
+                  "url": "https://lenta.ru/news/2026/03/05/nazvana-podopleka-prigovora-byvshemu-zamkomanduyuschego-voennym-okrugom-rossii/"
+                },
+                {
+                  "title": "Безопасность отдыха россиян в Турции оценили на фоне запущенной Ираном ракеты",
+                  "url": "https://lenta.ru/news/2026/03/05/bezopasnost-otdyha-rossiyan-v-turtsii-otsenili-na-fone-zapuschennoy-iranom-rakety/"
+                },
+                {
+                  "title": "Двое российских бойцов СВО спасли подбитый танк под обстрелами ВСУ",
+                  "url": "https://lenta.ru/news/2026/03/05/dvoe-rossiyskih-boytsov-svo-spasli-podbityy-tank-pod-obstrelami-vsu/"
+                },
+                {
+                  "title": "Конфликт на Украине обернулся для Европы катастрофой",
+                  "url": "https://lenta.ru/news/2026/03/05/konflikt-na-ukraine-obernulsya-dlya-evropy-katastrofoy/"
+                },
+                {
+                  "title": "Алиев рассказал о надеждах живущих в Иране азербайджанцев после удара по Нахичевани",
+                  "url": "https://lenta.ru/news/2026/03/05/aliev-rasskazal-o-nadezhdah-zhivuschih-v-irane-azerbaydzhantsev-posle-udara-po-nahichevani/"
+                }
+              ]
+            },
+            {
+              "tool": "top_headlines",
+              "args": "{\"source_key\": \"rbc\", \"max_results\": 5}",
+              "result_len": 38,
+              "sources": []
+            }
+          ]
+        },
+        {
+          "step": 1,
+          "type": "final",
+          "answer_len": 1598
+        }
+      ],
+      "sources": [
+        {
+          "title": "Названа подоплека приговора бывшему замкомандующего военным округом России",
+          "url": "https://lenta.ru/news/2026/03/05/nazvana-podopleka-prigovora-byvshemu-zamkomanduyuschego-voennym-okrugom-rossii/"
+        },
+        {
+          "title": "Безопасность отдыха россиян в Турции оценили на фоне запущенной Ираном ракеты",
+          "url": "https://lenta.ru/news/2026/03/05/bezopasnost-otdyha-rossiyan-v-turtsii-otsenili-na-fone-zapuschennoy-iranom-rakety/"
+        },
+        {
+          "title": "Двое российских бойцов СВО спасли подбитый танк под обстрелами ВСУ",
+          "url": "https://lenta.ru/news/2026/03/05/dvoe-rossiyskih-boytsov-svo-spasli-podbityy-tank-pod-obstrelami-vsu/"
+        },
+        {
+          "title": "Конфликт на Украине обернулся для Европы катастрофой",
+          "url": "https://lenta.ru/news/2026/03/05/konflikt-na-ukraine-obernulsya-dlya-evropy-katastrofoy/"
+        },
+        {
+          "title": "Алиев рассказал о надеждах живущих в Иране азербайджанцев после удара по Нахичевани",
+          "url": "https://lenta.ru/news/2026/03/05/aliev-rasskazal-o-nadezhdah-zhivuschih-v-irane-azerbaydzhantsev-posle-udara-po-nahichevani/"
+        }
+      ],
+      "final": "Вот свежие новости, как только что сметенные с новостной ленты!\n\n1. **[Названа подоплека приговора бывшему замкомандующему военным округом России](https://lenta.ru/news/2026/03/05/nazvana-podopleka-prigovora-byvshemu-zamkomanduyuschego-voennym-okrugom-rossii/)** — видимо, там даже суды не обходятся без своего \"доктора злых дел\". Что же там за такие повороты?\n\n2. **[Безопасность отдыха россиян в Турции оценили на фоне запущенной Ираном ракеты](https://lenta.ru/news/2026/03/05/bezopasnost-otdyha-rossiyan-v-turtsii-otsenili-na-fone-zapuschennoy-iranom-rakety/)** — видимо, теперь у нас не только sunscreen, но и противоракета в пляжной сумке!\n\n3. **[Двое российских бойцов СВО спасли подбитый танк под обстрелами ВСУ](https://lenta.ru/news/2026/03/05/dvoe-rossiyskih-boytsov-svo-spasli-podbityy-tank-pod-obstrelami-vsu/)** — героизм в дельте! Эх, кто-то на танке сейчас, наверное, пишет мемуары о \"романтике боевых выездов\".\n\n4. **[Конфликт на Украине обернулся для Европы катастрофой](https://lenta.ru/news/2026/03/05/konflikt-na-ukraine-obernulsya-dlya-evropy-katastrofoy/)** — такие новости, как правило, не радуют, но, увы, они в порядке вещей.\n\n5. **[Алиев рассказал о надеждах живущих в Иране азербайджанцев после удара по Нахичевани](https://lenta.ru/news/2026/03/05/aliev-rasskazal-o-nadezhdah-zhivuschih-v-irane-azerbaydzhantsev-posle-udara-po-nahichevani/)** — полагаю, в этой истории много эмоций и надежд. Главное — держаться вместе!\n\nК сожалению, от РБК ничего не пришло, но, может, они сейчас пишут про то, как завести лошадь с интернетом? 🤔\n\nНу как, что-то из этого тебя зацепило?\n\n📎 <b>Источники:</b>\n• <a href=\"https://lenta.ru/news/2026/03/05/nazvana-podopleka-prigovora-byvshemu-zamkomanduyuschego-voennym-okrugom-rossii/\">Названа подоплека приговора бывшему замкомандующего военным округом России</a>\n• <a href=\"https://lenta.ru/news/2026/03/05/bezopasnost-otdyha-rossiyan-v-turtsii-otsenili-na-fone-zapuschennoy-iranom-rakety/\">Безопасность отдыха россиян в Турции оценили на фоне запущенной Ираном ракеты</a>\n• <a href=\"https://lenta.ru/news/2026/03/05/dvoe-rossiyskih-boytsov-svo-spasli-podbityy-tank-pod-obstrelami-vsu/\">Двое российских бойцов СВО спасли подбитый танк под обстрелами ВСУ</a>\n• <a href=\"https://lenta.ru/news/2026/03/05/konflikt-na-ukraine-obernulsya-dlya-evropy-katastrofoy/\">Конфликт на Украине обернулся для Европы катастрофой</a>\n• <a href=\"https://lenta.ru/news/2026/03/05/aliev-rasskazal-o-nadezhdah-zhivuschih-v-irane-azerbaydzhantsev-posle-udara-po-nahichevani/\">Алиев рассказал о надеждах живущих в Иране азербайджанцев после удара по Нахичев…</a>",
+      "duration_ms": 12257
+    },
+    {
+      "ts": "2026-03-05T13:06:06.775270+00:00",
+      "user_message": "поищи новости про термоядерный синтез",
+      "model": "gpt-4o-mini",
+      "steps": [
+        {
+          "step": 0,
+          "type": "tool_calls",
+          "calls": [
+            {
+              "tool": "rss_search",
+              "args": "{\"query\":\"термоядерный синтез\",\"max_results\":5}",
+              "result_len": 27,
+              "sources": []
+            }
+          ]
+        },
+        {
+          "step": 1,
+          "type": "final",
+          "answer_len": 482
+        }
+      ],
+      "sources": [],
+      "final": "Ох, кажется, термоядерный синтез на данный момент прячется от моих поисковых радаров! Может, он решил устроить себе отпуск на Мальдивах или просто ускользнул в мир загадок.\n\nНо не отчаивайся! Термоядерный синтез — это такая тема, что если бы он действительно был на курорте, он бы, вероятно, заказал коктейль \"Плазменный взрыв\". Если тебе интересно, могу рассказать про основные достижения в этой области, или, может быть, ты хочешь узнать про что-то другое? Давай, я готов болтать!",
+      "duration_ms": 8563
+    },
+    {
+      "ts": "2026-03-05T13:06:38.783066+00:00",
+      "user_message": "а в чем проблема? поищи по форумам",
+      "model": "gpt-4o-mini",
+      "steps": [
+        {
+          "step": 0,
+          "type": "final",
+          "answer_len": 326
+        }
+      ],
+      "sources": [],
+      "final": "О, какая интригующая просьба! Но, к сожалению, я не могу просто так покопаться в форумах, как ниндзя в поисках информации. Однако я могу найти свежие новости и статьи, если ты подскажешь, о чем конкретно ты хочешь узнать. Давай, задай тему, и я постараюсь найти что-то интересное — как будто я на охоте за редкими артефактами!",
+      "duration_ms": 2273
+    },
+    {
+      "ts": "2026-03-05T13:06:53.712047+00:00",
+      "user_message": "ну найди новости по термоядерному синтезу",
+      "model": "gpt-4o-mini",
+      "steps": [
+        {
+          "step": 0,
+          "type": "tool_calls",
+          "calls": [
+            {
+              "tool": "rss_search",
+              "args": "{\"query\":\"термоядерный синтез\",\"max_results\":5}",
+              "result_len": 27,
+              "sources": []
+            }
+          ]
+        },
+        {
+          "step": 1,
+          "type": "final",
+          "answer_len": 526
+        }
+      ],
+      "sources": [],
+      "final": "Ой-ой-ой! Похоже, термоядерный синтез решил взять выходной, и свежих новостей по этой теме нет. Ну, что ж, бывает! Может быть, он где-то в космосе делает синтез и просто не хочет делиться новостями? \n\nНо не унывай! Термоядерный синтез — это такая загадочная штука, что даже новости от него всегда в дефиците. Может, он просто стесняется своей силы, как парень, который может поднять весь спортзал, но стесняется об этом рассказать. \n\nЕсли у тебя есть другие темы на примете, я с радостью попытаюсь найти свежие новости на них!",
+      "duration_ms": 7817
+    },
+    {
+      "ts": "2026-03-05T13:07:27.873586+00:00",
+      "user_message": "ну найди по другой технчиеской теме тогда",
+      "model": "gpt-4o-mini",
+      "steps": [
+        {
+          "step": 0,
+          "type": "final",
+          "answer_len": 217
+        }
+      ],
+      "sources": [],
+      "final": "Конечно! На какую именно техническую тему ты хотел бы, чтобы я нашел свежие новости? Может, что-то про искусственный интеллект, кибербезопасность, стартапы или, может быть, что-то другое? Давай, не стесняйся, выбирай!",
+      "duration_ms": 2801
+    },
+    {
+      "ts": "2026-03-05T13:07:36.865658+00:00",
+      "user_message": "сам выбери",
+      "model": "gpt-4o-mini",
+      "steps": [
+        {
+          "step": 0,
+          "type": "tool_calls",
+          "calls": [
+            {
+              "tool": "top_headlines",
+              "args": "{\"max_results\":5}",
+              "result_len": 2724,
+              "sources": [
+                {
+                  "title": "Как резать стекло ножницами и не только: эффект Ребиндера",
+                  "url": "https://habr.com/ru/companies/ruvds/articles/1005050/?utm_source=habrahabr&utm_medium=rss&utm_campaign=1005050"
+                },
+                {
+                  "title": "Как мы доверили нейросети раскаленную до 900 градусов печь, и где она ошиблась",
+                  "url": "https://habr.com/ru/companies/sibur_official/articles/1006528/?utm_source=habrahabr&utm_medium=rss&utm_campaign=1006528"
+                },
+                {
+                  "title": "Будни ретрокомпьютерщика: Fujitsu FMV-Biblo NE6/650R",
+                  "url": "https://habr.com/ru/articles/1006974/?utm_source=habrahabr&utm_medium=rss&utm_campaign=1006974"
+                },
+                {
+                  "title": "Подключение к GitHub по SSH: для новичков",
+                  "url": "https://habr.com/ru/articles/1006970/?utm_source=habrahabr&utm_medium=rss&utm_campaign=1006970"
+                },
+                {
+                  "title": "Что с QA в 2026? Профессия умирает? Или все преувеличивают?",
+                  "url": "https://habr.com/ru/articles/1006968/?utm_source=habrahabr&utm_medium=rss&utm_campaign=1006968"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "step": 1,
+          "type": "final",
+          "answer_len": 2118
+        }
+      ],
+      "sources": [
+        {
+          "title": "Как резать стекло ножницами и не только: эффект Ребиндера",
+          "url": "https://habr.com/ru/companies/ruvds/articles/1005050/?utm_source=habrahabr&utm_medium=rss&utm_campaign=1005050"
+        },
+        {
+          "title": "Как мы доверили нейросети раскаленную до 900 градусов печь, и где она ошиблась",
+          "url": "https://habr.com/ru/companies/sibur_official/articles/1006528/?utm_source=habrahabr&utm_medium=rss&utm_campaign=1006528"
+        },
+        {
+          "title": "Будни ретрокомпьютерщика: Fujitsu FMV-Biblo NE6/650R",
+          "url": "https://habr.com/ru/articles/1006974/?utm_source=habrahabr&utm_medium=rss&utm_campaign=1006974"
+        },
+        {
+          "title": "Подключение к GitHub по SSH: для новичков",
+          "url": "https://habr.com/ru/articles/1006970/?utm_source=habrahabr&utm_medium=rss&utm_campaign=1006970"
+        },
+        {
+          "title": "Что с QA в 2026? Профессия умирает? Или все преувеличивают?",
+          "url": "https://habr.com/ru/articles/1006968/?utm_source=habrahabr&utm_medium=rss&utm_campaign=1006968"
+        }
+      ],
+      "final": "О, я тут накопал свежих новостей из мира технологий! Смотри, какие интересные заголовки нам приготовила судьба:\n\n1. **[Как резать стекло ножницами и не только: эффект Ребиндера](https://habr.com/ru/companies/ruvds/articles/1005050/?utm_source=habrahabr&utm_medium=rss&utm_campaign=1005050)** — Знали ли вы, что можно резать стекло ножницами? Не верите? Читайте, и узнаете, как понизить прочность у крепких материалов с помощью эффекта Ребиндера! Это как в детских играх: \"На, держи, ножницы!\" Но только с более серьезными последствиями!\n\n2. **[Как мы доверили нейросети раскаленную до 900 градусов печь, и где она ошиблась](https://habr.com/ru/companies/sibur_official/articles/1006528/?utm_source=habrahabr&utm_medium=rss&utm_campaign=1006528)** — Представьте, нейросеть, контролирующая печь с температурой 900 градусов! Это как дать коту управлять пылесосом. Но, как всегда, не обошлось без ошибок. Что-то мне подсказывает, что печь не оценит креативного подхода.\n\n3. **[Будни ретрокомпьютерщика: Fujitsu FMV-Biblo NE6/650R](https://habr.com/ru/articles/1006974/?utm_source=habrahabr&utm_medium=rss&utm_campaign=1006974)** — А вот и новость для любителей ностальгии. Ретро ноутбук Fujitsu, который выглядит так, как будто его только что достали из бабушкиного чердака. Если бы только он мог рассказывать истории!\n\n4. **[Подключение к GitHub по SSH: для новичков](https://habr.com/ru/articles/1006970/?utm_source=habrahabr&utm_medium=rss&utm_campaign=1006970)** — Если вы еще не пробовали подключиться к GitHub по SSH, то вот вам пошаговое руководство! Забудьте о постоянном вводе логина и пароля! Это как секретный вход в мир программирования, только без паролей.\n\n5. **[Что с QA в 2026? Профессия умирает? Или все преувеличивают?](https://habr.com/ru/articles/1006968/?utm_source=habrahabr&utm_medium=rss&utm_campaign=1006968)** — Тут обсуждают, умирает ли профессия QA. Скажу так: если вы думаете, что автоматизация унижает тестировщиков, то вы, очевидно, не видели, как они вживаются в новые роли!\n\nВот так, короткие, но ёмкие — настоящие перлы из мира технологий! Надеюсь, что-то из этого зацепило твоё внимание!\n\n📎 <b>Источники:</b>\n• <a href=\"https://habr.com/ru/companies/ruvds/articles/1005050/?utm_source=habrahabr&utm_medium=rss&utm_campaign=1005050\">Как резать стекло ножницами и не только: эффект Ребиндера</a>\n• <a href=\"https://habr.com/ru/companies/sibur_official/articles/1006528/?utm_source=habrahabr&utm_medium=rss&utm_campaign=1006528\">Как мы доверили нейросети раскаленную до 900 градусов печь, и где она ошиблась</a>\n• <a href=\"https://habr.com/ru/articles/1006974/?utm_source=habrahabr&utm_medium=rss&utm_campaign=1006974\">Будни ретрокомпьютерщика: Fujitsu FMV-Biblo NE6/650R</a>\n• <a href=\"https://habr.com/ru/articles/1006970/?utm_source=habrahabr&utm_medium=rss&utm_campaign=1006970\">Подключение к GitHub по SSH: для новичков</a>\n• <a href=\"https://habr.com/ru/articles/1006968/?utm_source=habrahabr&utm_medium=rss&utm_campaign=1006968\">Что с QA в 2026? Профессия умирает? Или все преувеличивают?</a>",
+      "duration_ms": 16281
+    }
+  ]
+}

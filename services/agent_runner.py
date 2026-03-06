@@ -24,6 +24,7 @@ from typing import Any
 
 from openai import OpenAI
 
+import services.mcp_client as mcp_client
 from services.agent_tools import TOOL_FUNCTIONS, TOOL_SCHEMAS
 
 logger = logging.getLogger("blabber")
@@ -184,20 +185,41 @@ def _build_sources_block(sources: list[dict[str, str]]) -> str:
 # ── Tool call dispatcher ──────────────────────────────────────────────────────
 
 def _dispatch_tool(name: str, arguments: str) -> str:
-    """Call the named tool with JSON-parsed arguments. Returns JSON string result."""
-    fn = TOOL_FUNCTIONS.get(name)
-    if fn is None:
-        return json.dumps({"error": f"Unknown tool: {name}"})
+    """
+    Call the named tool and return a JSON string result.
+
+    Transport priority:
+      1. MCP server (HTTP) — if MCP_BASE_URL is configured and server responds.
+      2. Local Python functions — fallback when MCP is unavailable/unconfigured.
+    """
     try:
         args = json.loads(arguments) if arguments else {}
     except json.JSONDecodeError:
         args = {}
+
+    # ── Try MCP server first ──────────────────────────────────────────────────
+    if mcp_client.is_configured():
+        result = mcp_client.call_tool(name, args)
+        # Propagate to local fallback only on "server unavailable" errors
+        if "error" not in result or not any(
+            phrase in result["error"]
+            for phrase in ("MCP server unavailable", "MCP server timeout", "MCP_BASE_URL is not")
+        ):
+            logger.info("dispatch_tool transport=mcp name=%s", name)
+            return json.dumps(result, ensure_ascii=False)
+        logger.warning("dispatch_tool mcp_failed name=%s err=%s — falling back to local", name, result["error"])
+
+    # ── Local fallback ────────────────────────────────────────────────────────
+    fn = TOOL_FUNCTIONS.get(name)
+    if fn is None:
+        return json.dumps({"error": f"Unknown tool: {name}"})
     try:
         result = fn(**args)
     except TypeError as exc:
         result = {"error": f"Bad arguments for {name}: {exc}"}
     except Exception as exc:
         result = {"error": f"Tool {name} failed: {exc}"}
+    logger.info("dispatch_tool transport=local name=%s", name)
     return json.dumps(result, ensure_ascii=False)
 
 

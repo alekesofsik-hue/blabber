@@ -9,11 +9,14 @@ Commands:
 
 from __future__ import annotations
 
+import os
+
 import telebot
 from telebot import types
 
 from middleware.auth import with_user_check
 from services.agent_tools import SOURCE_MAP, hn_top, top_headlines
+from services.mcp_client import get_tools
 from user_storage import is_agent_enabled, set_agent_enabled
 
 
@@ -98,18 +101,31 @@ def _build_agent_status(user_id: int) -> tuple[str, types.InlineKeyboardMarkup]:
         for key, (name, _) in SOURCE_MAP.items()
     )
 
+    mcp_line = ""
+    base_url = os.getenv("MCP_BASE_URL", "").strip()
+    if base_url:
+        tools = get_tools()
+        if tools:
+            mcp_line = f"\n<b>MCP:</b> включён ✅ (<code>{base_url}</code>, tools: {len(tools)})\n"
+        else:
+            mcp_line = f"\n<b>MCP:</b> настроен, но сервер не отвечает ⚠️ (<code>{base_url}</code>)\n"
+    else:
+        # Not configured — agent_runner will use local tool fallback
+        mcp_line = "\n<b>MCP:</b> выключен (использую локальные инструменты)\n"
+
     text = (
         f"🤖 <b>Балабол-новостник (Agent-режим)</b>\n\n"
         f"Статус: <b>{status_icon}</b>\n\n"
-        f"<b>Что умеет:</b>\n"
-        f"🔍 Искать по RSS-лентам (Хабр, 3DNews, Лента, HN и др.)\n"
-        f"📰 Выдавать топ заголовков по источнику\n"
-        f"🔥 Показывать тренды Hacker News\n"
-        f"🌐 Читать и пересказывать страницу по URL\n\n"
-        f"<b>Источники:</b>\n{sources_list}\n\n"
-        f"<i>В agent-режиме каждое твоё сообщение обрабатывается агентом "
-        f"(он сам решает, нужно ли что-то искать). "
-        f"Кнопки ниже — быстрый просмотр заголовков без включения режима.</i>"
+        + mcp_line
+        + "<b>Что умеет:</b>\n"
+        + "🔍 Искать по RSS-лентам (Хабр, 3DNews, Лента, HN и др.)\n"
+        + "📰 Выдавать топ заголовков по источнику\n"
+        + "🔥 Показывать тренды Hacker News\n"
+        + "🌐 Читать и пересказывать страницу по URL\n\n"
+        + f"<b>Источники:</b>\n{sources_list}\n\n"
+        + "<i>В agent-режиме каждое твоё сообщение обрабатывается агентом "
+        + "(он сам решает, нужно ли что-то искать). "
+        + "Кнопки ниже — быстрый просмотр заголовков без включения режима.</i>"
     )
 
     kb = types.InlineKeyboardMarkup(row_width=2)

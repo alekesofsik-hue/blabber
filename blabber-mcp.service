@@ -1,0 +1,18 @@
+[Unit]
+Description=Blabber MCP Server - инструменты Балабол-новостника (HTTP API)
+After=network.target
+
+[Service]
+Type=simple
+User=ezovskikh_a
+WorkingDirectory=/home/ezovskikh_a/apps/blabber/mcp_server
+Environment="PATH=/home/ezovskikh_a/apps/blabber/venv/bin:/usr/local/bin:/usr/bin:/bin"
+ExecStart=/home/ezovskikh_a/apps/blabber/venv/bin/python -m uvicorn server:app --host 127.0.0.1 --port 51337
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=blabber-mcp
+
+[Install]
+WantedBy=multi-user.target
