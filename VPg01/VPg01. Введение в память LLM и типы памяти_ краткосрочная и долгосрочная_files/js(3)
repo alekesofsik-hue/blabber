@@ -1,0 +1,49 @@
+ $(function () {
+
+     if (window.location.href.indexOf("editMode=1") > -1 || window.location.href.indexOf("/editMode/1") > -1) return;
+     
+    let blockWrapper = $(".main-page-block").eq(0);
+
+    if (blockWrapper.length === 0) {
+      blockWrapper = $(".gc-main-content").eq(0);
+    } else if (blockWrapper.length === 0) {
+      return;
+    }
+
+    blockWrapper.append(`
+<div id="button_to_top">
+</div>
+`);
+
+
+    /* Сколько нужно проскроллить чтобы появилась кнопка */
+    const scroll_value = 1000;
+
+    /* За сколько миллисекунд должна быть прокрутка до верха страницы */
+    const ms = 300;
+
+    /* Получаем кнопку */
+    const btn = $('#button_to_top');
+
+    if (btn.length === 0) return;
+
+    if ($(window).scrollTop() > scroll_value) {
+      btn.addClass('btn_show');
+    } else {
+      btn.removeClass('btn_show');
+    }
+
+
+    $(window).scroll(function () {
+      if ($(window).scrollTop() > scroll_value) {
+        btn.addClass('btn_show');
+      } else {
+        btn.removeClass('btn_show');
+      }
+    });
+
+    btn.on('click', function (e) {
+      e.preventDefault();
+      $('html, body').animate({ scrollTop: 0 }, ms);
+    });
+  })

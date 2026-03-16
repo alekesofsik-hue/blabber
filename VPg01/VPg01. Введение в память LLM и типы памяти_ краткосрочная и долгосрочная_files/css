@@ -1,0 +1,198 @@
+
+
+@font-face {
+    font-family: "Geometria";
+    font-style: normal;
+    font-weight: 400;
+    src: url("/fileservice/file/download/a/256825/sc/227/h/dfbf30f0dc1350857a285264b0a4af6d.woff") format("woff"),
+        url("/fileservice/file/download/a/256825/sc/176/h/2d7e47c79f709904afc9fbe78e930841.ttf");
+}
+
+@font-face {
+    font-family: "Geometria";
+    font-style: normal;
+    font-weight: 700;
+    src:
+        url("/fileservice/file/download/a/256825/sc/350/h/656fd333f6a1fc3c0f49ed6d5be1f8c9.woff") format("woff"),
+        url("/fileservice/file/download/a/256825/sc/273/h/060ddeb0add4544f9a291e1653dcd2d1.ttf");
+}
+
+
+@font-face {
+    font-family: "Geometria";
+    font-style: normal;
+    font-weight: 500;
+    src:
+
+        url("/fileservice/file/download/a/256825/sc/167/h/44b2c0f1250102cf4dd187e5dbb6431b.woff") format("woff"),
+        url("/fileservice/file/download/a/256825/sc/159/h/a3c4e3b189e29bef4b4c5731544788f4.ttf");
+}
+
+
+
+
+:root {
+    --color_1: #9F7BF4;
+    --color_2: #4CEF8A;
+    --blackColor: #262626;
+    --grayColor: #F4F3F4;
+    --mainFont: "Geometria", "proxima-nova", "arial", sans-serif;
+}
+
+
+
+/* Скрыть лого */
+.standard-logo,
+.logo.gc-account-logo {
+    display: none;
+}
+
+/* Скрыть задачи верхняя плашка */
+.gc-tasks-block {
+    display: none;
+}
+
+
+/* Шапка */
+
+.page-header,
+.content-menu {
+    border: none;
+}
+
+
+
+
+::-moz-selection {
+    color: #ffffff;
+    background-color: var(--color_1);
+}
+
+::selection {
+    color: #ffffff;
+    background-color: var(--color_1);
+}
+
+.talks-widget-button {
+    background-color: var(--color_1);
+}
+
+
+
+
+
+/* button_to_top */
+#button_to_top {
+    display: inline-block;
+    width: 50px;
+    height: 50px;
+    text-align: center;
+    border-radius: 50px;
+    position: fixed;
+    bottom: 20px;
+    left: 100px;
+
+    /* Иконка стрелки вверх */
+    background-image: url("https://fs.getcourse.ru/fileservice/file/download/a/256825/sc/274/h/5d1d7724e22aabc035dea10ef81971ec.svg");
+
+    /* Цвет фона кнопки */
+    background-color: #ffffff;
+    background-position: center;
+    background-repeat: no-repeat;
+    background-size: 20px;
+    box-shadow: 0 0 10px 0 rgba(0, 0, 0, 0.18);
+    z-index: 1000;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.4s;
+}
+/*#button_to_top {
+    display: none;
+}*/
+
+#button_to_top:hover {
+    cursor: pointer;
+    transition: all 0.4s;
+}
+
+#button_to_top.btn_show {
+    opacity: 0.85;
+    visibility: visible;
+}
+
+#button_to_top.btn_show:hover {
+    opacity: 1;
+}
+
+@media (max-width: 768px) {
+    #button_to_top {
+        display: inline-block;
+        margin: 5px;
+        width: 40px;
+        height: 40px;
+        bottom: 10px;
+        left: 10px;
+        background-size: 15px;
+    }
+
+    .with-left-menu #button_to_top {
+        bottom: 50px;
+    }
+
+}
+
+
+/* / button_to_top */
+
+
+
+/* Увеличить CSS поле на страницах в редактировании блоков */
+.css-settings .CodeMirror {
+    min-height: 700px;
+}
+
+/* Класс html_n для html редактора в разделе "Настроить вид" */
+.editable.html_n {
+    min-height: 50px;
+    background-color: #afa2ff;
+}
+
+.editable.html_n textarea {
+    height: 400px;
+    font-family:"Roboto", "Arial", sans-serif;
+}
+
+
+.html_n.lt-editing.lt-raw-html div[id*="rawHtml"] {
+    width: 100%;
+    min-height: 40px;
+    margin-left: auto;
+    margin-right: auto;
+    padding: 5px;
+    text-align: center;
+    margin-top: 15px;
+    margin-bottom: 15px;
+    color: white;
+    font-size: 14px;
+    position: relative;
+    background-image: url(/public/img/chess.png);
+    cursor: pointer;
+}
+
+.html_n.lt-editing.lt-raw-html div[id*="rawHtml"]::before {
+    content: "HTML-block";
+    display: block;
+    width: 300px;
+    height: 40px;
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 16px;
+    font-weight: 400;
+    background-color: #222;
+}
+

@@ -1,0 +1,280 @@
+
+
+:root {
+	--color-main-1: #b1a9f4;
+	--color-main-2: #7c89fb;
+	--color-main-3: #3819c1;
+	--color-white: #FFF;
+	--color-link: #4cef8a;
+}
+
+@import url('https://fonts.cdnfonts.com/css/geometria');
+
+.gc-main-content:not(.with-left-menu) .top-notification-wrapper {
+    display: none;
+}
+
+.common-banner-wrapper.hide_banners {
+       display:none!important;
+}
+
+.info-wrapper .common-banner-wrapper {
+    position: relative!important;
+}
+
+.common-banner-wrapper {
+	left: 90px !important;
+	bottom: 5px !important;
+	z-index: 999 !important;
+	display: flex !important;
+	position: fixed !important;
+	justify-content: flex-end !important;
+	font-family: 'Geometria', sans-serif;
+}
+
+.common-banner {
+	display: flex !important;
+	padding: 2px 15px 5px 7px !important;
+	border-radius: 6px !important;
+	max-height: 140px!important;
+	background:linear-gradient(0.941turn,rgba(246,170,88,1) 0%,rgba(232,49,18,1) 100%)!important;
+	color:#fff!important;
+     border: 2px solid #76CEF2; /* &#9989; Зеленая рамка */
+	 position: relative
+}
+
+.common-banner .banner-content {
+	width: 250px !important;
+    color: #fff!important;
+}
+
+.common-banner .banner-content a {
+	color: #fff!important;
+}
+
+.common-banner .banner-title {
+	font-size: 15.5px !important;
+	font-weight: bold !important;
+	margin: 12px 0 3px 0 !important;
+	line-height: 16px !important;
+}
+
+.common-banner .banner-title span {
+	border: 1px white solid !important;
+	box-sizing: border-box !important;
+	border-radius: 6px !important;
+	padding: 0.5px 2px !important;
+}
+
+.common-banner .close-btn {
+  display: inline-block;
+  padding: 5px 10px; /* Регулируем размер */
+  font-size: 24px; /* Регулируем размер символа */
+  color: #fff!important; /* Цвет символа */
+  background-color: transparent!important; /* Прозрачный фон */
+  border: none; /* Убираем границу */
+  cursor: pointer; /* Стиль курсора, указывающий на кликабельность */
+}
+
+
+.common-banner .banner-text {
+	padding: 0 !important;
+	font-size: 14px !important;
+	line-height: 14px !important;
+	font-weight: 400 !important;
+}
+
+.common-banner .banner-text span {
+	font-weight: 600 !important;
+}
+
+.common-banner .banner-link {
+	color: #fff!important;
+	text-transform: uppercase !important;
+	font-size: 16px !important;
+	font-weight: 600 !important;
+	background:radial-gradient(circle at center,rgba(118,206,242,1) 0%,rgba(41,170,233,1) 100%)!important;
+	margin-left: 35px !important;
+	margin-top: 27px !important;
+	padding: 7px !important;
+	padding-top: 7px !important;
+	width: 210px !important;
+	text-align: center !important;
+	border-radius: 6px !important;
+	display: inline-block !important;
+    line-height: 1.3;
+    letter-spacing: 1px !important;
+    
+	}
+
+.common-banner .banner-close {
+	color: var(--color-white) !important;
+	line-height: 1 !important;
+	font-size: 35px !important;
+	margin-left: 20px !important;
+	margin-top: 5px !important;
+	font-weight: bold !important;
+	display: inline-block !important;
+    }
+
+.common-banner a {
+	color: #fff !important;
+	text-decoration: none !important;
+        cursor: pointer;
+}
+.common-banner .colortext {
+     color: #C4F021!important; /* Красный цвет выделения */
+   }
+.common-banner .text-with-background {
+    color: #fff!important;
+     background-color: #76CEF2; /* Красный цвет выделения */
+	 display: inline-block;
+   }
+
+.common-banner .banner-wrapper-content {
+	display: flex !important;
+	margin-left: 10px !important;
+	align-items: flex-start !important;
+}
+
+.common-banner a.mobile {
+	display: none !important;
+}
+
+.common-banner__note {
+	position: absolute !important;
+	bottom: -7px !important;
+	right: 27px !important;
+	color: var(--color-white) !important;
+	opacity: 0.95 !important;
+	font-size: 10px !important;
+}
+
+.common-banner .banner-logo {
+	width: 85px !important;
+    height: 85px !important;
+    margin-top: 5px !important;
+   
+}
+
+.mobile-show {
+	display: none !important;
+}
+
+@media (max-width: 768px) {
+	.common-banner-wrapper {
+		left: 5px !important;
+		bottom: 70px !important; /* Подняли выше, чтобы не перекрывалось плавающей кнопкой */
+		padding-right: 60px !important; /* Отступ справа для плавающей кнопки помощи */
+	}
+}
+
+/* ============================================
+   МОБИЛЬНЫЕ УСТРОЙСТВА (до 560px)
+   ============================================ */
+@media (max-width: 560px) {
+	.common-banner {
+		/* &#9989; Адаптивная ширина ТОЛЬКО для мобильных */
+		width: auto !important;
+		min-width: auto !important; /* Убираем минимальную ширину */
+		max-width: calc(100vw - 20px) !important; /* Увеличили отступ от краев */
+		padding: 6px 50px 8px 8px !important; /* Уменьшили отступы — меньше пустого места */
+		max-height: none !important; /* Убираем ограничение высоты */
+		box-sizing: border-box !important; /* Правильный расчет размеров */
+		overflow: hidden !important; /* Предотвращаем переполнение */
+		margin-right: 10px !important; /* Отступ справа для плавающей кнопки */
+		align-items: flex-start !important; /* Высота по контенту, без растягивания */
+	}
+
+	/* &#9989; Крестик - удобный для пальца */
+	.common-banner .banner-close,
+	.common-banner .close-btn {
+		position: absolute !important;
+		top: 6px !important;
+		right: 6px !important;
+		z-index: 5 !important;
+		width: 44px !important;
+		height: 44px !important;
+		display: flex !important;
+		align-items: center !important;
+		justify-content: center !important;
+		line-height: 1 !important;
+		font-size: 18px !important;
+		margin: 0 !important; /* Убираем старые отступы */
+		cursor: pointer !important;
+	}
+
+	.common-banner .banner-link {
+		height: auto !important;
+		width: auto !important;
+		max-width: 100% !important;
+		font-size: 9px !important;
+		padding: 4px 8px !important;
+		border-radius: 4px !important;
+		position: relative !important; /* Изменено с absolute на relative */
+		line-height: 1.2 !important;
+		margin-top: 2px !important; /* Минимальный отступ между текстом и кнопкой */
+		margin-left: 0 !important;
+		margin-right: 0 !important;
+		margin-bottom: 0 !important;
+		box-sizing: border-box !important;
+		white-space: normal !important; /* Разрешаем перенос текста */
+		word-wrap: break-word !important;
+		display: inline-block !important;
+		text-align: center !important;
+	}
+
+	.common-banner .banner-wrapper-content {
+		margin-top: -4px !important;
+		margin-left: 6px !important;
+		margin-bottom: 0 !important;
+		flex-direction: column !important; /* Вертикальное расположение */
+		width: calc(100% - 60px) !important; /* Оставляем место только для логотипа */
+		padding-right: 10px !important;
+		padding-bottom: 0 !important;
+		gap: 0 !important; /* Убираем gap между flex элементами */
+		box-sizing: border-box !important;
+		align-items: flex-start !important; /* Не растягивать по высоте */
+	}
+
+	.common-banner .banner-title {
+		max-width: 100% !important;
+		line-height: 13.15px !important;
+		font-size: 12px !important;
+		margin: 6px 0 2px 0 !important; /* Компактные отступы */
+		word-wrap: break-word !important;
+		overflow-wrap: break-word !important;
+	}
+
+	.common-banner .banner-text {
+		max-width: 90% !important;
+		font-size: 10px !important;
+		line-height: 11.2px !important;
+		margin: 0 !important;
+		margin-bottom: 0 !important;
+		padding: 0 !important;
+		padding-bottom: 0 !important;
+		word-wrap: break-word !important;
+		overflow-wrap: break-word !important;
+	}
+
+	.common-banner__note {
+		right: 7px !important;
+		font-size: 8px !important;
+		bottom: -7px !important; /* Явно указываем позицию */
+	}
+
+	.common-banner .banner-logo {
+		margin-top: 4px !important;
+		margin-bottom: 0 !important;
+		width: 45px !important;
+		height: 45px !important;
+		max-width: 100% !important;
+		flex-shrink: 0 !important;
+		align-self: flex-start !important; /* Не растягивать по высоте */
+	}
+
+	.mobile-show {
+		display: block !important;
+	}
+}

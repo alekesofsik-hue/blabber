@@ -1,0 +1,19 @@
+/**
+ * Автор: Александр Силич
+ * ТГ канал: https://t.me/pro_getcourse
+ */
+
+$(() => {
+// БЛОКИРУЕМ КОММЕНТЫ НА ОТВЕТЫ К ДЗ
+  const ALLOW_COMMENTS = [
+    // ID ТРЕНИНГОВ, ДЛЯ КОТОРЫХ НЕ БЛОКИРОВАТЬ
+    11111, 22222,
+    // ID УРОКОВ, ДЛЯ КОТОРЫХ НЕ БЛОКИРОВАТЬ
+    11111, 22222,
+  ]
+
+  if ( window.location.href.includes('/control/lesson/view') && !ALLOW_COMMENTS.includes(window.lessonId) && !$('.breadcrumb a, h1 a').toArray().map(a => a.href.match(/\/id\/(\d+)/)?.[1]).filter(id => id).some(id => ALLOW_COMMENTS.includes(parseInt(id))) ) {
+    $('.user-answer.status-declined .gc-comment-form').after('<div style="margin-top:2em;text-align:center;font-size:1.25em;color:#a00;">Ваш ответ отклонен, исправьте ошибки и сдайте новое домашнее задание</div>').hide()
+    $('.user-answer.status-accepted .gc-comment-form').after('<div style="margin-top:2em;text-align:center;font-size:1.25em;color:#080;">Ваш ответ принят, дополнительные вопросы вы можете задать<br>в чате поддержки вашему куратору</div>').hide()
+  }
+})

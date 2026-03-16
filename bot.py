@@ -17,6 +17,7 @@ import services.context_service as ctx_svc
 import services.knowledge_service as kb_svc
 import services.persona_service as persona_svc
 import services.profile_service as profile_svc
+import services.auto_memory_service as am_svc
 from database import init_db
 from middleware.auth import with_user_check
 from services.config_registry import get_config_registry, get_setting
@@ -103,6 +104,7 @@ def _build_system_message(
     has_profile: bool,
     has_kb_context: bool,
     persona_prompt: str | None = None,
+    convo_summary: str | None = None,
 ) -> str:
     """
     Build the adaptive system message for the current request.
@@ -116,6 +118,12 @@ def _build_system_message(
 
     if persona_prompt:
         msg += f"\n\nРоль для этого разговора: {persona_prompt}"
+
+    if convo_summary:
+        msg += (
+            "\n\nКраткое резюме предыдущей беседы (для связности ответов):\n"
+            f"{convo_summary}"
+        )
 
     if has_profile:
         msg += (
@@ -134,6 +142,39 @@ def _build_system_message(
         )
 
     return msg
+
+
+def _memory_suggestion_text(items: list[dict]) -> str:
+    lines: list[str] = ["🧠 <b>Предложение памяти</b>\n", "Хочешь, я запомню это про тебя?\n"]
+    for i, it in enumerate(items, start=1):
+        kind = it.get("kind") or "fact"
+        label = "Предпочтение" if kind == "preference" else "Факт"
+        status = it.get("status") or "pending"
+        mark = "✅ " if status == "saved" else ""
+        text = it.get("text") or ""
+        evidence = (it.get("evidence") or "").strip()
+        lines.append(f"{mark}<b>{i}. {label}:</b> {text}")
+        if evidence:
+            lines.append(f"<i>цитата: “{evidence}”</i>")
+        lines.append("")
+    lines.append("Можно пропустить или отключить такие подсказки.")
+    return "\n".join(lines).strip()
+
+
+def _memory_keyboard(suggestion_id: str, items: list[dict]) -> types.InlineKeyboardMarkup:
+    kb = types.InlineKeyboardMarkup(row_width=2)
+    for idx, it in enumerate(items):
+        status = it.get("status") or "pending"
+        if status == "saved":
+            kb.add(types.InlineKeyboardButton(f"✅ #{idx+1} сохранено", callback_data="mem_na"))
+        else:
+            kb.add(types.InlineKeyboardButton(f"✅ Запомнить #{idx+1}", callback_data=f"mem_a_{suggestion_id}_{idx}"))
+    kb.add(types.InlineKeyboardButton("✅ Запомнить всё", callback_data=f"mem_all_{suggestion_id}"))
+    kb.add(
+        types.InlineKeyboardButton("⏭ Не сейчас", callback_data=f"mem_skip_{suggestion_id}"),
+        types.InlineKeyboardButton("🚫 Не предлагать", callback_data=f"mem_off_{suggestion_id}"),
+    )
+    return kb
 
 
 def _split_text(text: str, limit: int = TG_MSG_LIMIT) -> list[str]:
@@ -195,7 +236,7 @@ def handle_start(message):
     
     default_welcome = (
         "Привет! Я Blabber — балабол, который любит трепаться и болтать! 😄\n\n"
-        "Я умею общаться используя разные модели:\n"
+        "Я умею общаться, используя разные модели:\n"
         "• GigaChat, OpenRouter (DeepSeek), DeepSeek R1\n"
         "• OpenAI (GPT-4o), Yandex GPT, Ollama (local)\n\n"
         "Ключевые команды:\n"
@@ -203,9 +244,12 @@ def handle_start(message):
         "/model <название> — переключить модель\n"
         "/role — сменить роль бота (Ассистент, Разработчик, Аналитик…)\n"
         "/mode — режим разговора (с памятью / без памяти)\n"
-        "/reset — очистить историю\n"
+        "/reset или /clear — очистить историю\n"
         "/voice — управление озвучкой\n"
         "/remember — запомни факт обо мне\n"
+        "/prefer — как мне отвечать (предпочтение)\n"
+        "/profile — посмотреть и удалить сохранённое\n"
+        "/memory — автопамять (подсказки, что запомнить)\n"
         "/kb — база знаний (загрузи документ!)\n"
         "/agent — Балабол-новостник (поиск новостей)\n"
         "/report — PDF-отчёт по нашему разговору\n"
@@ -268,7 +312,10 @@ def handle_help(message):
         "🧠 Долгосрочная память:\n"
         "/remember <факт> — запомни кое-что обо мне\n"
         "   Пример: /remember Меня зовут Алексей\n"
-        "/profile — посмотреть и удалить сохранённые факты\n\n"
+        "/prefer <предпочтение> — как мне отвечать (стиль/ограничения)\n"
+        "   Пример: /prefer Отвечай кратко и без эмодзи\n"
+        "/profile — посмотреть и удалить сохранённое\n"
+        "/memory — включить/выключить автопредложения памяти\n\n"
         "📚 База знаний (RAG):\n"
         "/kb — статус и управление базой знаний\n"
         "   /kb on /kb off — включить / выключить\n"
@@ -649,6 +696,152 @@ def callback_clear(call):
             pass
 
 
+@bot.message_handler(commands=["memory"])
+@with_user_check(bot)
+def handle_memory(message):
+    """Управление автопамятью: /memory, /memory on, /memory off."""
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+    parts = message.text.split()
+
+    settings = am_svc.get_settings(user_id) or {"enabled": True, "last_suggested_at": None}
+    enabled = bool(settings.get("enabled"))
+
+    if len(parts) >= 2:
+        arg = parts[1].strip().lower()
+        if arg in ("on", "enable", "1", "true", "yes"):
+            am_svc.set_enabled(user_id, True)
+            bot.send_message(
+                chat_id,
+                "✅ Автопамять включена. Иногда я буду предлагать, что стоит запомнить.\n"
+                "Это всегда требует подтверждения кнопкой.",
+            )
+            return
+        if arg in ("off", "disable", "0", "false", "no"):
+            am_svc.set_enabled(user_id, False)
+            bot.send_message(
+                chat_id,
+                "⏸ Автопамять выключена.\n"
+                "Ты всё равно можешь сохранять вручную: /remember и /prefer",
+            )
+            return
+
+    status = "✅ включена" if enabled else "⏸ выключена"
+    bot.send_message(
+        chat_id,
+        "🧠 <b>Автопамять</b>\n\n"
+        f"Статус: {status}\n\n"
+        "Я могу предлагать сохранить полезные факты/предпочтения из диалога.\n"
+        "Сохраняется только после твоего подтверждения.\n\n"
+        "<i>Команды:</i>\n"
+        "/memory on — включить\n"
+        "/memory off — выключить",
+        parse_mode="HTML",
+    )
+
+
+@bot.callback_query_handler(func=lambda c: c.data == "mem_na")
+def callback_mem_noop(call):
+    bot.answer_callback_query(call.id, "Ок.")
+
+
+@bot.callback_query_handler(func=lambda c: c.data.startswith("mem_"))
+def callback_memory(call):
+    user_id = call.from_user.id
+    data = call.data
+
+    if data.startswith("mem_a_"):
+        parts = data.split("_")
+        if len(parts) != 4:
+            bot.answer_callback_query(call.id, "Ошибка.")
+            return
+        suggestion_id = parts[2]
+        try:
+            idx = int(parts[3])
+        except ValueError:
+            bot.answer_callback_query(call.id, "Ошибка.")
+            return
+
+        ok, msg, items = am_svc.apply_suggestion_item(
+            telegram_id=user_id,
+            suggestion_id=suggestion_id,
+            item_index=idx,
+        )
+        bot.answer_callback_query(call.id, msg)
+        if items is not None:
+            try:
+                bot.edit_message_text(
+                    _memory_suggestion_text(items),
+                    call.message.chat.id,
+                    call.message.message_id,
+                    parse_mode="HTML",
+                    reply_markup=_memory_keyboard(suggestion_id, items),
+                )
+            except Exception:
+                pass
+        return
+
+    if data.startswith("mem_all_"):
+        suggestion_id = data.split("_", 2)[2]
+        last_msg = "Готово."
+        # Try apply all items best-effort
+        for i in range(0, 50):
+            ok, msg, items = am_svc.apply_suggestion_item(
+                telegram_id=user_id,
+                suggestion_id=suggestion_id,
+                item_index=i,
+            )
+            if items is None:
+                break
+            if msg == "Некорректный пункт.":
+                break
+            last_msg = msg
+
+        bot.answer_callback_query(call.id, last_msg)
+        if items is not None:
+            try:
+                bot.edit_message_text(
+                    _memory_suggestion_text(items),
+                    call.message.chat.id,
+                    call.message.message_id,
+                    parse_mode="HTML",
+                    reply_markup=_memory_keyboard(suggestion_id, items),
+                )
+            except Exception:
+                pass
+        return
+
+    if data.startswith("mem_skip_"):
+        suggestion_id = data.split("_", 2)[2]
+        am_svc.dismiss_suggestion(telegram_id=user_id, suggestion_id=suggestion_id, status="dismissed")
+        bot.answer_callback_query(call.id, "Ок, не буду сейчас.")
+        try:
+            bot.edit_message_text(
+                "⏭ Ок, не буду сохранять. Если захочешь — расскажи сам: /remember или /prefer",
+                call.message.chat.id,
+                call.message.message_id,
+            )
+        except Exception:
+            pass
+        return
+
+    if data.startswith("mem_off_"):
+        suggestion_id = data.split("_", 2)[2]
+        am_svc.set_enabled(user_id, False)
+        am_svc.dismiss_suggestion(telegram_id=user_id, suggestion_id=suggestion_id, status="dismissed")
+        bot.answer_callback_query(call.id, "Ок, больше не предлагаю.")
+        try:
+            bot.edit_message_text(
+                "🚫 Понял. Больше не буду предлагать автопамять.\n"
+                "Включить обратно можно командой /memory on",
+                call.message.chat.id,
+                call.message.message_id,
+            )
+        except Exception:
+            pass
+        return
+
+
 @bot.message_handler(func=lambda message: message.text is not None)
 @with_user_check(bot)
 def handle_text_message(message):
@@ -725,6 +918,9 @@ def handle_text_message(message):
         selected_model = get_user_model(user_id)
         context_mode = ctx_svc.get_mode(user_id)
 
+        # Summary (2B): inject into system prompt, not into history messages
+        convo_summary = ctx_svc.get_summary(user_id) if context_mode == "chat" else None
+
         # ── Short memory (C): rolling conversation history ────────────────────
         history = ctx_svc.get_history(user_id) if context_mode == "chat" else []
 
@@ -750,6 +946,7 @@ def handle_text_message(message):
             has_profile=profile_ctx is not None,
             has_kb_context=rag_ctx is not None,
             persona_prompt=persona_addon,
+            convo_summary=convo_summary,
         )
 
         request_id = uuid.uuid4().hex
@@ -842,6 +1039,31 @@ def handle_text_message(message):
                 "ℹ️ <i>Режим: Вопрос-ответ. Память не сохраняется. Переключи /mode чтобы включить чат.</i>",
                 parse_mode="HTML",
             )
+
+        # ── Useful long-term memory: suggest facts/preferences (Idea 3) ───────
+        if context_mode == "chat":
+            try:
+                suggestion = am_svc.maybe_create_suggestion(
+                    telegram_id=user_id,
+                    selected_model=selected_model,
+                )
+                if suggestion:
+                    suggestion_id, items = suggestion
+                    bot.send_message(
+                        chat_id,
+                        _memory_suggestion_text(items),
+                        parse_mode="HTML",
+                        reply_markup=_memory_keyboard(suggestion_id, items),
+                    )
+            except Exception as mem_err:
+                logger.warning(
+                    "auto_memory_suggest_failed",
+                    extra={
+                        "event": "auto_memory_suggest_failed",
+                        "user_id_hash": uid_hash,
+                        "error": str(mem_err)[:200],
+                    },
+                )
 
     except Exception as e:
         logger.exception(

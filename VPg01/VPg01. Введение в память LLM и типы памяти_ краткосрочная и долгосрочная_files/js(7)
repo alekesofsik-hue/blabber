@@ -1,0 +1,10 @@
+if( window.location.pathname === '/pl/teach/control/lesson/view' ) {
+    $(() => {
+        const $block = [...document.querySelectorAll('.field-label .label-value')].find(f => f.textContent === 'Урок')?.closest('.field-content')
+        if( $block ) {
+            const lessonTitle = document.querySelector('h2.lesson-title-value').textContent
+            $block.querySelector('.f-input').value = lessonTitle
+            $block.querySelector('.custom-field-value').value = `"${lessonTitle}"`
+        }
+    })
+}

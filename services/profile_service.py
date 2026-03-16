@@ -17,6 +17,7 @@ logger = logging.getLogger("blabber")
 
 MAX_FACTS: int = 20
 MAX_FACT_LEN: int = 300
+ALLOWED_KINDS: set[str] = {"fact", "preference"}
 
 
 def _uid(telegram_id: int) -> int | None:
@@ -46,26 +47,53 @@ def get_facts_with_ids(telegram_id: int) -> list[dict]:
         return []
 
 
+def get_items_with_ids(telegram_id: int) -> list[dict]:
+    uid = _uid(telegram_id)
+    if uid is None:
+        return []
+    try:
+        return profile_repo.get_items_with_ids(uid)
+    except Exception as exc:
+        logger.warning("profile_get_items_with_ids_failed", extra={"error": str(exc)})
+        return []
+
+
 def add_fact(telegram_id: int, fact: str) -> tuple[bool, str]:
     """Add a personal fact. Returns (success, message)."""
+    return add_item(telegram_id, kind="fact", text=fact)
+
+
+def add_preference(telegram_id: int, text: str) -> tuple[bool, str]:
+    """Add a user preference (style / constraints). Returns (success, message)."""
+    return add_item(telegram_id, kind="preference", text=text)
+
+
+def add_item(telegram_id: int, *, kind: str, text: str) -> tuple[bool, str]:
+    """Add a profile item (fact/preference). Returns (success, message)."""
     uid = _uid(telegram_id)
     if uid is None:
         return False, "Пользователь не найден"
 
-    fact = fact.strip()
+    kind = (kind or "").strip().lower()
+    if kind not in ALLOWED_KINDS:
+        return False, "Неизвестный тип памяти"
+
+    fact = (text or "").strip()
     if not fact:
-        return False, "Факт не может быть пустым"
+        return False, "Текст не может быть пустым"
     if len(fact) > MAX_FACT_LEN:
         return False, f"Слишком длинно, макс. {MAX_FACT_LEN} символов"
 
     count = profile_repo.count_facts(uid)
     if count >= MAX_FACTS:
-        return False, f"Достигнут лимит ({MAX_FACTS} фактов). Удали лишнее через /profile"
+        return False, f"Достигнут лимит ({MAX_FACTS} пунктов). Удали лишнее через /profile"
 
     try:
-        added = profile_repo.add_fact(uid, fact)
+        added = profile_repo.add_item(uid, fact=fact, kind=kind)
         if not added:
             return False, "Такой факт уже сохранён"
+        if kind == "preference":
+            return True, "Принято! Буду учитывать."
         return True, "Запомнил!"
     except Exception as exc:
         logger.warning("profile_add_fact_failed", extra={"error": str(exc)})
@@ -102,8 +130,21 @@ def build_profile_context(telegram_id: int) -> str | None:
     Build a context string to inject as an assistant note before the current turn.
     Returns None if the user has no saved facts.
     """
-    facts = get_facts(telegram_id)
-    if not facts:
+    items = get_items_with_ids(telegram_id)
+    if not items:
         return None
-    lines = "\n".join(f"• {f}" for f in facts)
-    return f"[Что я знаю о собеседнике:\n{lines}\n]"
+
+    prefs = [i["fact"] for i in items if (i.get("kind") or "fact") == "preference"]
+    facts = [i["fact"] for i in items if (i.get("kind") or "fact") != "preference"]
+
+    parts: list[str] = []
+    if prefs:
+        parts.append("Предпочтения:")
+        parts.extend(f"• {p}" for p in prefs)
+    if facts:
+        if parts:
+            parts.append("")
+        parts.append("Факты:")
+        parts.extend(f"• {f}" for f in facts)
+
+    return "[Что я знаю о собеседнике:\n" + "\n".join(parts) + "\n]"

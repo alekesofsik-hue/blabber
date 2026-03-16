@@ -109,6 +109,9 @@ def get_history(telegram_id: int) -> list[dict[str, str]]:
 
     Format: list of {"role": "user"|"assistant", "content": "..."}
 
+    Note: conversation summary is not included here. Use get_summary() and inject it into
+    the system prompt (idea 2B) to preserve continuity when the rolling window is trimmed.
+
     Side-effect: if last activity is older than TTL, auto-clears context and returns [].
     """
     uid = _get_user_db_id(telegram_id)
@@ -126,22 +129,33 @@ def get_history(telegram_id: int) -> list[dict[str, str]]:
             )
             return []
 
-        summary = ctx_repo.get_summary(uid)
         messages = ctx_repo.get_messages(uid)
 
         history: list[dict[str, str]] = []
-        if summary:
-            # Inject summary as a system-style note attributed to assistant so
-            # it fits the user/assistant alternation expected by all providers.
-            history.append(
-                {"role": "assistant", "content": f"[Краткое резюме предыдущей беседы: {summary}]"}
-            )
         history.extend({"role": m["role"], "content": m["content"]} for m in messages)
         return history
 
     except Exception as exc:
         logger.warning("context_get_history_failed", extra={"error": str(exc)})
         return []
+
+
+def get_summary(telegram_id: int) -> str | None:
+    """
+    Return the stored conversation summary (or None if empty / user missing).
+
+    The summary is intended to be injected into the system prompt (idea 2B),
+    while get_history() returns only the rolling window messages.
+    """
+    uid = _get_user_db_id(telegram_id)
+    if uid is None:
+        return None
+    try:
+        summary = ctx_repo.get_summary(uid)
+        return summary or None
+    except Exception as exc:
+        logger.warning("context_get_summary_failed", extra={"error": str(exc)})
+        return None
 
 
 def add_turn(telegram_id: int, user_msg: str, assistant_msg: str) -> None:

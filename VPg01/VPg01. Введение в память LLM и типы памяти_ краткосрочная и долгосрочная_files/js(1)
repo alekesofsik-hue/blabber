@@ -1,0 +1,3 @@
+if(window.location.href.indexOf('/pl/webinar/show') > -1) {
+  $('<link>', {rel:"stylesheet", href: "/pl/cms/layout/css?id=13512&hash=a68d1ec116efd4fbbb73e4d8808ba25e&bundle=1"}).appendTo('head');
+}

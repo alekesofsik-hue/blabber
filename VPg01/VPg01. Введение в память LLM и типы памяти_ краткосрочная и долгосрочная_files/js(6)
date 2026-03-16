@@ -1,0 +1,80 @@
+ // continue block
+  $(function () {
+
+    if (window.location.href.indexOf("lesson/view") === -1 && window.location.href.indexOf("lesson/webview") === -1) return;
+
+    if (window.location.href.indexOf("/editMode/1") > -1 || window.location.href.indexOf("editMode=1") > -1) {
+      return;
+    }
+
+    $.get("/page-info", (data) => {
+      const pageHtml = $("<div>").html(data);
+      let emailStr = pageHtml.find(".user_email").text().trim();
+
+      if (!emailStr) return;
+      let lessonLink = window.location.href;
+
+
+      let lessonTitle = $(".lesson-title-value").text().trim();
+
+
+
+
+      if (lessonLink.indexOf("/webview") > -1) {
+        lessonLink = lessonLink.replace("/webview", "/view");
+
+        lessonTitle = $(".lesson-title h2").text().trim();
+      }
+
+      if (!lessonTitle) return;
+
+      const dataStr = lessonTitle + ";" + lessonLink;
+
+        $.post("/pl/lite/block-public/process?id=2006655443", { "formParams[email]": emailStr, "formParams[userCustomFields][10205083]": dataStr });
+
+    });
+  });
+
+
+
+
+if (window.location.href.indexOf("/lesson/view") > -1) {
+    // [JS] Btn to top
+    JSinjection("/pl/cms/layout/js?id=38566&hash=cdbeeb3db8502d2645bf82af097bb608&bundle=1");
+}
+
+
+// Подключить CSS
+function includeCss(file, where = 'head') {
+
+  const link = document.createElement("link");
+  link.rel = "stylesheet";
+  link.type = "text/css";
+  link.href = file;
+  document.getElementsByTagName(where)[0].appendChild(link);
+
+}
+
+
+// Подключение js
+function JSinjection(fileName, to="head", callback = null) {
+    var script = document.createElement("script")
+    script.type = "text/javascript";
+    if (script.readyState) {
+      script.onreadystatechange = function () {
+        if (script.readyState === "loaded" || script.readyState === "complete") {
+          script.onreadystatechange = null;
+          callback();
+        }
+      };
+    } else {
+      script.onload = function () {
+        if (callback) {
+          callback();  
+        }
+          
+      };
+    }
+    script.src = fileName;
+    document.getElementsByTagName(to)[0].appendChild(script);
+  }
