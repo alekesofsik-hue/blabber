@@ -20,6 +20,7 @@ import services.profile_service as profile_svc
 import services.auto_memory_service as am_svc
 from database import init_db
 from middleware.auth import with_user_check
+from bot_texts import resolve_help_message, resolve_start_message
 from services.config_registry import get_config_registry, get_setting
 from telemetry import setup_telemetry, text_meta, user_id_hash
 from tts import get_available_voices, synthesize_voice
@@ -86,6 +87,7 @@ from handlers import (  # noqa: E402
     register_knowledge_handlers,
     register_persona_handlers,
     register_profile_handlers,
+    register_quote_handlers,
     register_report_handlers,
 )
 
@@ -94,6 +96,7 @@ register_profile_handlers(bot)
 register_knowledge_handlers(bot)
 register_persona_handlers(bot)
 register_agent_handlers(bot)
+register_quote_handlers(bot)
 register_report_handlers(bot)
 
 # Лимит Telegram на длину одного сообщения
@@ -234,38 +237,11 @@ def handle_start(message):
         },
     )
     
-    default_welcome = (
-        "Привет! Я Blabber — балабол, который любит трепаться и болтать! 😄\n\n"
-        "Я умею общаться, используя разные модели:\n"
-        "• GigaChat, OpenRouter (DeepSeek), DeepSeek R1\n"
-        "• OpenAI (GPT-4o), Yandex GPT, Ollama (local)\n\n"
-        "Ключевые команды:\n"
-        "/models — список моделей\n"
-        "/model <название> — переключить модель\n"
-        "/role — сменить роль бота (Ассистент, Разработчик, Аналитик…)\n"
-        "/mode — режим разговора (с памятью / без памяти)\n"
-        "/reset или /clear — очистить историю\n"
-        "/voice — управление озвучкой\n"
-        "/remember — запомни факт обо мне\n"
-        "/prefer — как мне отвечать (предпочтение)\n"
-        "/profile — посмотреть и удалить сохранённое\n"
-        "/memory — автопамять (подсказки, что запомнить)\n"
-        "/kb — база знаний (загрузи документ!)\n"
-        "/agent — Балабол-новостник (поиск новостей)\n"
-        "/report — PDF-отчёт по нашему разговору\n"
-        "/help — полная справка\n\n"
-        f"Модель: {get_available_models().get(get_user_model(user_id), 'неизвестна')}"
-    )
-    welcome_from_config = get_setting("welcome_message")
-    if welcome_from_config:
-        welcome_text = str(welcome_from_config).replace(
-            "{model}",
-            get_available_models().get(get_user_model(user_id), "неизвестна"),
-        )
-    else:
-        welcome_text = default_welcome
-    
-    bot.send_message(chat_id, welcome_text)
+    model_label = get_available_models().get(get_user_model(user_id), "неизвестна")
+    # Текст по умолчанию — bot_texts/defaults.py; переопределение: config welcome_message (пусто = шаблон из кода)
+    welcome_text, welcome_mode = resolve_start_message(model_label, get_setting("welcome_message"))
+    extra = {"parse_mode": welcome_mode} if welcome_mode else {}
+    bot.send_message(chat_id, welcome_text, **extra)
 
 
 @bot.message_handler(commands=["help"])
@@ -281,61 +257,12 @@ def handle_help(message):
         },
     )
     
-    help_text = (
-        "📚 Команды бота:\n\n"
-        "/start - начать работу\n"
-        "/models - показать доступные модели\n"
-        "/model <название> - переключить модель\n"
-        "   Примеры:\n"
-        "   /model gigachat\n"
-        "   /model openrouter\n"
-        "   /model reasoning\n"
-        "   /model openai\n"
-        "   /model yandexgpt\n"
-        "   /model ollama\n\n"
-        "🎭 Роль бота:\n"
-        "/role — показать текущую роль и меню выбора\n"
-        "   /role assistant  — Обычный помощник\n"
-        "   /role developer  — Помощник разработчика\n"
-        "   /role analyst    — Аналитик\n"
-        "   /role teacher    — Учитель\n"
-        "   /role writer     — Редактор текстов\n\n"
-        "/mode - режим разговора\n"
-        "   /mode chat   — Чат (с памятью)\n"
-        "   /mode single — Вопрос-ответ (без памяти)\n"
-        "/reset или /clear - очистить историю разговора 🗑\n\n"
-        "/voice - управление озвучкой ответов 🔊\n"
-        "   /voice on — включить\n"
-        "   /voice off — выключить\n"
-        "   /voice alena — женский (Алёна)\n"
-        "   /voice filipp — мужской (Филипп)\n\n"
-        "🧠 Долгосрочная память:\n"
-        "/remember <факт> — запомни кое-что обо мне\n"
-        "   Пример: /remember Меня зовут Алексей\n"
-        "/prefer <предпочтение> — как мне отвечать (стиль/ограничения)\n"
-        "   Пример: /prefer Отвечай кратко и без эмодзи\n"
-        "/profile — посмотреть и удалить сохранённое\n"
-        "/memory — включить/выключить автопредложения памяти\n\n"
-        "📚 База знаний (RAG):\n"
-        "/kb — статус и управление базой знаний\n"
-        "   /kb on /kb off — включить / выключить\n"
-        "   /kb clear — удалить все документы\n"
-        "Пришли файл (TXT, PDF, DOCX, MD) — добавится автоматически!\n\n"
-        "🕵️ Балабол-новостник:\n"
-        "/agent — статус и быстрые кнопки\n"
-        "   /agent on — включить режим (ищу новости сам)\n"
-        "   /agent off — выключить\n\n"
-        "📄 Отчёт по разговору:\n"
-        "/report — сгенерировать PDF-отчёт из истории чата\n"
-        "   /report help — подробная справка\n"
-        "   Требует режима /mode chat и накопленной истории.\n"
-        "   Обложка-картинка добавляется, если настроен OPENAI_API_KEY.\n\n"
-        "/help - показать эту справку\n\n"
-        "💰 Для OpenAI/OpenRouter показывается стоимость запроса в рублях (по курсу ЦБ РФ).\n\n"
-        "Просто напиши мне что-нибудь, и я отвечу как балабол! 😊"
-    )
-    
-    bot.send_message(chat_id, help_text)
+    # Шаблон по умолчанию — bot_texts/defaults.py; переопределение: config help_message (пусто = шаблон из кода)
+    help_text, help_mode = resolve_help_message(get_setting("help_message"))
+    kw: dict = {}
+    if help_mode:
+        kw["parse_mode"] = help_mode
+    send_long_message(chat_id, help_text, **kw)
 
 
 @bot.message_handler(commands=["models"])
@@ -362,7 +289,8 @@ def handle_models(message):
         models_text += f"{marker} {name} ({key})\n"
     
     models_text += f"\nТекущая модель: {available_models.get(current_model, 'неизвестна')}\n"
-    models_text += "\nИспользуй /model <название> для переключения"
+    models_text += "\nПереключение: /model название из списка выше\n"
+    models_text += "Все команды бота: /help"
     
     bot.send_message(chat_id, models_text)
 

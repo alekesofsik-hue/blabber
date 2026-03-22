@@ -126,10 +126,17 @@ def register_admin_handlers(bot: telebot.TeleBot) -> None:
     @require_role(bot, min_weight=100)
     def cmd_setconfig(message: types.Message) -> None:
         parts = message.text.split(maxsplit=2)
-        if len(parts) < 3:
-            bot.reply_to(message, "❌ Использование: /setconfig <key> <value>")
+        if len(parts) < 2:
+            bot.reply_to(
+                message,
+                "❌ Использование: /setconfig <key> <value>\n"
+                "Для пустого значения (напр. сброс welcome_message к шаблону из кода): "
+                "<code>/setconfig welcome_message</code> без текста после ключа",
+                parse_mode="HTML",
+            )
             return
-        key, value = parts[1], parts[2]
+        key = parts[1]
+        value = parts[2] if len(parts) >= 3 else ""
         reg = get_config_registry()
         row = config_get_all()
         keys = {r["key"] for r in row}

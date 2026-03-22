@@ -7,7 +7,7 @@ INSERT OR IGNORE INTO config (key, value, value_type, category, description, is_
     ('default_daily_request_limit', '100', 'int', 'limits', 'Default daily request limit per user', 0),
     ('tts_max_chars', '5000', 'int', 'tts', 'Max characters for TTS synthesis', 0),
     ('maintenance_mode', 'false', 'bool', 'system', 'Bot in maintenance mode (reject user requests)', 0),
-    ('welcome_message', 'Привет! Я Blabber — балабол, который любит трепаться и болтать! Используй /models, /model, /voice, /help.', 'str', 'messages', 'Welcome message for /start', 0),
+    ('welcome_message', '', 'str', 'messages', 'Текст /start при переопределении. Пусто = встроенный шаблон bot_texts/defaults.py (HTML). Плейсхолдер: {model}', 0),
     ('models_enabled', '{"gigachat":true,"openrouter":true,"reasoning":true,"yandexgpt":true,"ollama":true}', 'json', 'models', 'Which models are enabled for selection', 0),
     ('ollama_model', 'gemma2:2b-instruct-q4_K_M', 'str', 'models', 'Ollama model name', 0),
     ('ollama_timeout', '180', 'int', 'models', 'Ollama request timeout (seconds)', 0),
