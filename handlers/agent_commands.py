@@ -2,22 +2,62 @@
 Agent commands — /agent handler for Blabber.
 
 Commands:
-  /agent          — show current status + quick-access buttons
-  /agent on       — enable agent mode (incoming messages go through agent loop)
-  /agent off      — disable agent mode (back to normal Balabool)
+  /agent              — show current status + quick-access buttons
+  /agent on           — enable agent mode (incoming messages go through agent loop)
+  /agent off          — disable agent mode (back to normal Balabool)
+  /duel               — явный запуск сравнения двух заголовков (compare_two_headlines)
+  /compare_headlines  — то же, что /duel
 """
 
 from __future__ import annotations
 
+import logging
 import os
 
 import telebot
 from telebot import types
 
 from middleware.auth import with_user_check
+from services.config_registry import get_setting
 from services.agent_tools import SOURCE_MAP, hn_top, top_headlines
+from services.limiter import check_limits
 from services.mcp_client import get_tools
-from user_storage import is_agent_enabled, set_agent_enabled
+from user_storage import get_user_voice, is_agent_enabled, is_voice_enabled, set_agent_enabled
+
+logger = logging.getLogger("blabber")
+
+# Сообщение в агент: заставляет модель вызвать compare_two_headlines, а не два top_headlines.
+_DUEL_PROMPT_HEAD = (
+    "Задача: шутливо сравни два свежих заголовка из разных новостных лент в стиле Балабола "
+    "(псевдо-дискуссия, «битва абсурда», не выдумывай другие новости). "
+    "ОБЯЗАТЕЛЬНО вызови ровно один раз инструмент compare_two_headlines. "
+    "Не вызывай top_headlines дважды вместо него. "
+)
+
+
+def _build_duel_user_message(args: list[str]) -> str | None:
+    """
+    args — слова после команды, например ['habr', 'meduza'].
+    Возвращает текст для run_agent или None если аргументы некорректны.
+    """
+    if len(args) == 0:
+        return _DUEL_PROMPT_HEAD + "Вызови compare_two_headlines без аргументов (две случайные ленты)."
+    if len(args) == 2:
+        a, b = args[0], args[1]
+        if a == b:
+            return None  # caller sends error
+        return (
+            _DUEL_PROMPT_HEAD
+            + f'Вызови compare_two_headlines с source_key_a="{a}" и source_key_b="{b}".'
+        )
+    return None  # не 0 и не 2 аргумента
+
+
+def _split_command_args(message_text: str) -> list[str]:
+    parts = (message_text or "").split()
+    if len(parts) <= 1:
+        return []
+    return parts[1:]
 
 
 def register_agent_handlers(bot: telebot.TeleBot) -> None:
@@ -44,8 +84,11 @@ def register_agent_handlers(bot: telebot.TeleBot) -> None:
                 "🕵️ <b>Agent-режим включён!</b>\n\n"
                 "Теперь я — <b>Балабол-новостник</b>: сначала ищу свежие данные, "
                 "потом трещу о них.\n\n"
-                "Просто напиши что тебя интересует — сам разберусь откуда тащить инфу.\n\n"
-                "<i>Чтобы вернуться в обычный режим: /agent off</i>",
+                "Просто напиши что тебя интересует — сам разберусь откуда тащить инфу.\n"
+                "Для явного сравнения двух заголовков из разных лент: "
+                "<code>/duel</code> или <code>/compare_headlines</code> "
+                "(или с ключами: <code>/duel habr meduza</code>).\n\n"
+                "<i>Обычный режим без поиска: /agent off</i>",
                 parse_mode="HTML",
             )
             return
@@ -62,6 +105,112 @@ def register_agent_handlers(bot: telebot.TeleBot) -> None:
 
         # ── unknown subcommand → show status ──────────────────────────────────
         _send_agent_status(bot, message.chat.id, user_id)
+
+    # ── /duel /compare_headlines — явный compare_two_headlines для агента ─────
+
+    @bot.message_handler(commands=["duel", "compare_headlines"])
+    @with_user_check(bot)
+    def handle_duel(message):
+        chat_id = message.chat.id
+        user_id = message.from_user.id
+
+        maintenance = get_setting("maintenance_mode", False)
+        if isinstance(maintenance, bool):
+            is_maint = maintenance
+        else:
+            is_maint = str(maintenance).lower() in ("true", "1", "yes")
+        if is_maint:
+            role_weight = getattr(message, "_user", None) and message._user.get("role_weight") or 0
+            if role_weight < 100:
+                bot.send_message(
+                    chat_id,
+                    "🔧 Бот временно на техническом обслуживании. Попробуйте позже.",
+                )
+                return
+
+        allowed, limit_reason = check_limits(user_id)
+        if not allowed:
+            bot.send_message(chat_id, limit_reason)
+            return
+
+        if not is_agent_enabled(user_id):
+            bot.send_message(
+                chat_id,
+                "⚔️ Команда <code>/duel</code> работает в агентном режиме.\n\n"
+                "Сначала включи: <code>/agent on</code>\n\n"
+                "Тогда я отправлю в агент явный запрос на инструмент "
+                "<code>compare_two_headlines</code> (два свежих заголовка из разных лент) "
+                "и разверну шутливое сравнение.\n\n"
+                "<b>Формат:</b>\n"
+                "• <code>/duel</code> — случайные две ленты\n"
+                "• <code>/duel habr meduza</code> — конкретные ключи (два разных). "
+                "Ключи смотри в <code>/agent</code>.",
+                parse_mode="HTML",
+            )
+            return
+
+        args = _split_command_args(message.text)
+        if len(args) not in (0, 2):
+            bot.send_message(
+                chat_id,
+                "⚔️ Нужно <b>0</b> или <b>2</b> ключа источника.\n"
+                "Примеры: <code>/duel</code> · <code>/duel habr meduza</code>",
+                parse_mode="HTML",
+            )
+            return
+
+        if len(args) == 2:
+            if args[0] == args[1]:
+                bot.send_message(
+                    chat_id,
+                    "⚔️ Укажи два <b>разных</b> ключа, например: <code>/duel habr meduza</code>",
+                    parse_mode="HTML",
+                )
+                return
+            for k in args:
+                if k not in SOURCE_MAP:
+                    known = ", ".join(sorted(SOURCE_MAP.keys()))
+                    bot.send_message(
+                        chat_id,
+                        f"⚔️ Неизвестный ключ <code>{k}</code>.\n"
+                        f"Доступные: <code>{known}</code>",
+                        parse_mode="HTML",
+                    )
+                    return
+
+        user_message = _build_duel_user_message(args)
+        if user_message is None:
+            bot.send_message(chat_id, "⚔️ Не удалось собрать запрос. Попробуй ещё раз.")
+            return
+
+        from services.agent_runner import run_agent
+
+        bot.send_chat_action(chat_id, "typing")
+        logger.info("duel_command user_id=%s args=%s", user_id, args)
+        try:
+            agent_response = run_agent(user_message, user_id)
+        except Exception as exc:
+            logger.exception("duel_agent_failed", extra={"user_id": user_id})
+            agent_response = f"Агент сломался: {exc}"
+
+        from bot import send_long_message
+
+        send_long_message(
+            chat_id,
+            agent_response,
+            parse_mode="HTML",
+            disable_web_page_preview=True,
+        )
+
+        if is_voice_enabled(user_id):
+            try:
+                from tts import synthesize_voice
+
+                voice_key = get_user_voice(user_id)
+                ogg_data = synthesize_voice(agent_response, voice_key=voice_key)
+                bot.send_voice(chat_id, ogg_data)
+            except Exception:
+                pass
 
     # ── Inline callbacks from status keyboard ─────────────────────────────────
 
@@ -121,10 +270,12 @@ def _build_agent_status(user_id: int) -> tuple[str, types.InlineKeyboardMarkup]:
         + "🔍 Искать по RSS-лентам (Хабр, 3DNews, Лента, HN и др.)\n"
         + "📰 Выдавать топ заголовков по источнику\n"
         + "🔥 Показывать тренды Hacker News\n"
-        + "🌐 Читать и пересказывать страницу по URL\n\n"
+        + "🌐 Читать и пересказывать страницу по URL\n"
+        + "⚔️ <code>/duel</code> — два свежих заголовка из разных лент (compare_two_headlines)\n\n"
         + f"<b>Источники:</b>\n{sources_list}\n\n"
         + "<i>В agent-режиме каждое твоё сообщение обрабатывается агентом "
-        + "(он сам решает, нужно ли что-то искать). "
+        + "(он сам решает, нужно ли что-то искать). Команды <code>/duel</code> и "
+        + "<code>/compare_headlines</code> — явное сравнение двух лент (нужен включённый режим). "
         + "Кнопки ниже — быстрый просмотр заголовков без включения режима.</i>"
     )
 

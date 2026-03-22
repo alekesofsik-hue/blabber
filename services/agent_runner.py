@@ -38,6 +38,9 @@ AGENT_MEMORY_DIR = Path("agent_memory")   # per-user memory.json files live here
 AGENT_SYSTEM = (
     "Ты — Балабол, говорливый и шутливый AI-ассистент. "
     "У тебя есть инструменты для поиска свежих новостей и статей в интернете. "
+    "Если просят сравнить два мира новостей, «битву абсурда», псевдо-дискуссию "
+    "между лентами — вызывай compare_two_headlines (один вызов), потом развивай "
+    "юмор на основе **реальных** заголовков из ответа инструмента. "
     "Когда пользователь спрашивает о новостях, трендах, свежих статьях — "
     "используй инструменты, чтобы найти реальные данные, а потом болтай о них "
     "с юмором и азартом. Цитируй заголовки, шути, отвлекайся, трепись — "
@@ -155,6 +158,16 @@ def _extract_sources(tool_name: str, result_json: str) -> list[dict[str, str]]:
         url = data.get("url", "").strip()
         if url and url.startswith("http"):
             sources.append({"title": url, "url": url})
+
+    elif tool_name == "compare_two_headlines":
+        for key in ("headline_a", "headline_b"):
+            h = data.get(key) or {}
+            if not isinstance(h, dict):
+                continue
+            url = (h.get("link") or "").strip()
+            title = (h.get("title") or "").strip()
+            if url and url.startswith("http"):
+                sources.append({"title": title or url, "url": url})
 
     return sources
 

@@ -7,6 +7,9 @@
 
 Плейсхолдер в welcome: {model} — подставляется название текущей модели (экранируется
 во встроенном HTML-режиме).
+
+Справка должна совпадать с фактическими командами в `bot.py` и `handlers/`
+(в т.ч. `/agent`, `/duel`, `/compare_headlines`, `/admin`).
 """
 
 from __future__ import annotations
@@ -35,7 +38,10 @@ START_MESSAGE_HTML_TEMPLATE = (
     "<code>/quotes list</code> — вся коллекция (до 3 на стр., кнопки 🗑 1–3)\n"
     "<code>/quotes search</code> — поиск по смыслу · <code>/quotes help</code> — справка по коллекции\n\n"
     "📚 <code>/kb</code> — база знаний; пришли файл (TXT, PDF, DOCX, MD) в чат\n"
-    "🕵️ <code>/agent</code> — Балабол-новостник\n"
+    "🕵️ <b>Балабол-новостник:</b> <code>/agent</code> — статус и кнопки; "
+    "<code>/agent on</code> — режим с поиском по RSS и Hacker News; "
+    "<code>/duel</code> или <code>/compare_headlines</code> — сравнить два свежих заголовка из "
+    "<b>разных</b> лент (нужен <code>/agent on</code>)\n"
     "📄 <code>/report</code> — PDF по разговору (нужны <code>/mode chat</code> и история) · "
     "<code>/report help</code> — подробности\n\n"
     "🤖 <b>Сейчас выбрана модель:</b> {model}"
@@ -45,7 +51,8 @@ HELP_MESSAGE_HTML = (
     "📚 <b>Полная справка по командам</b>\n\n"
     "<b>Общее</b>\n"
     "<code>/start</code> — приветствие и краткая карта\n"
-    "<code>/help</code> — эта справка\n\n"
+    "<code>/help</code> — эта справка\n"
+    "<code>/admin</code> — панель администратора (только при наличии прав)\n\n"
     "<b>Модели</b>\n"
     "<code>/models</code> — список и текущая модель\n"
     "<code>/model</code> — переключить. Примеры:\n"
@@ -84,9 +91,16 @@ HELP_MESSAGE_HTML = (
     "<code>/kb</code> — статус, документы, кнопки\n"
     "<code>/kb on</code> / <code>/kb off</code> / <code>/kb clear</code>\n"
     "Файл в чат (TXT, PDF, DOCX, MD) — индексация автоматически\n\n"
-    "<b>Балабол-новостник</b>\n"
-    "<code>/agent</code> — статус и быстрые кнопки\n"
-    "<code>/agent on</code> / <code>/agent off</code> — агентный режим (поиск новостей и т.д.)\n\n"
+    "<b>Балабол-новостник (агент)</b>\n"
+    "<code>/agent</code> — статус, список ключей источников, быстрые кнопки (заголовки без "
+    "включения режима)\n"
+    "<code>/agent on</code> / <code>/agent off</code> — включить или выключить агентный режим: "
+    "модель сама вызывает инструменты (поиск по RSS, топ HN, чтение страницы по ссылке, "
+    "сравнение двух заголовков из разных лент)\n"
+    "<code>/duel</code> или <code>/compare_headlines</code> — то же через агент, но с "
+    "заранее заданным запросом на один вызов <code>compare_two_headlines</code> "
+    "(случайные две ленты или, например, <code>/duel habr meduza</code>; нужен "
+    "<code>/agent on</code>)\n\n"
     "<b>Отчёт PDF</b>\n"
     "<code>/report</code> — отчёт по истории чата (нужны <code>/mode chat</code> и переписка)\n"
     "<code>/report help</code> — детали\n"

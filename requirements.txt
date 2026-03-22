@@ -1,5 +1,7 @@
 pyTelegramBotAPI>=4.14.0
 openai>=1.0.0
+# VPg03 ДЗ: инструмент агента через LangChain @tool + convert_to_openai_tool
+langchain-core>=0.3.0
 python-dotenv>=1.0.0
 httpx>=0.23.0
 requests>=2.28.0

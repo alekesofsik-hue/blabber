@@ -1,21 +1,26 @@
 """
 Agent tools — "Балабол-новостник" toolkit.
 
-Four tools available to the agent:
+Tools available to the agent:
   • rss_search(query, max_results)    — full-text search across curated RSS feeds
   • top_headlines(source, max_results) — latest N headlines from a source
   • hn_top(n)                          — top N stories from Hacker News (API)
   • fetch_summary(url, max_chars)      — fetch a URL and return extracted text
+  • compare_two_headlines(...)         — two fresh headlines from different RSS feeds
+                                         (LangChain @tool — VPg03 homework)
 """
 
 from __future__ import annotations
 
 import logging
+import random
 import re
 import textwrap
 from typing import Any
 
 import requests
+from langchain_core.tools import tool
+from langchain_core.utils.function_calling import convert_to_openai_tool
 
 logger = logging.getLogger("blabber")
 
@@ -148,7 +153,7 @@ def top_headlines(source_key: str = "habr", max_results: int = 5) -> dict[str, A
     Get the latest N headlines from a specific RSS source.
 
     Args:
-        source_key:  Key from SOURCE_MAP (e.g. 'habr', 'vc', 'lenta').
+        source_key:  Key from SOURCE_MAP (e.g. 'habr', 'rbc', 'lenta').
         max_results: How many items to return.
 
     Returns:
@@ -263,9 +268,115 @@ def fetch_summary(url: str, max_chars: int = 1500) -> dict[str, Any]:
         return {"error": str(exc), "url": url}
 
 
+# ── compare_two_headlines (VPg03: схема для OpenAI из LangChain @tool) ────────
+
+def _first_headline_from_source(source_key: str) -> dict[str, str] | None:
+    """Самый свежий пункт ленты (первый в RSS) или None."""
+    entry = SOURCE_MAP.get(source_key)
+    if not entry:
+        return None
+    name, url = entry
+    items = _fetch_feed(url)
+    if not items:
+        return None
+    it = items[0]
+    return {
+        "title":       it["title"][:300],
+        "link":        it["link"],
+        "source_name": name,
+        "source_key":  source_key,
+        "pubdate":     it.get("pubdate", ""),
+    }
+
+
+def compare_two_headlines_impl(
+    source_key_a: str | None = None,
+    source_key_b: str | None = None,
+) -> dict[str, Any]:
+    """
+    По одному свежему заголовку из двух разных RSS-источников.
+    Если оба ключа None — выбираются два случайных различных ключа из SOURCE_MAP.
+    """
+    keys = list(SOURCE_MAP.keys())
+
+    if source_key_a is not None and source_key_b is not None:
+        if source_key_a == source_key_b:
+            return {"error": "Источники должны различаться."}
+        if source_key_a not in SOURCE_MAP or source_key_b not in SOURCE_MAP:
+            return {
+                "error": "Неизвестный ключ источника.",
+                "available_keys": keys,
+            }
+        pair = (source_key_a, source_key_b)
+    elif source_key_a is None and source_key_b is None:
+        if len(keys) < 2:
+            return {"error": "В конфигурации меньше двух RSS-источников."}
+        pair = tuple(random.sample(keys, 2))
+    else:
+        return {
+            "error": "Укажи оба ключа (source_key_a и source_key_b) или ни одного — "
+            "тогда выберу два случайных источника.",
+        }
+
+    ha = _first_headline_from_source(pair[0])
+    hb = _first_headline_from_source(pair[1])
+
+    if not ha or not hb:
+        found: list[dict[str, str]] = []
+        shuffled = keys[:]
+        random.shuffle(shuffled)
+        for k in shuffled:
+            h = _first_headline_from_source(k)
+            if h:
+                found.append(h)
+            if len(found) >= 2:
+                break
+        if len(found) < 2:
+            return {
+                "error": "Не удалось получить заголовки из RSS (пустые ленты или сеть).",
+            }
+        ha, hb = found[0], found[1]
+
+    logger.info(
+        "agent_tool_compare_two_headlines a=%s b=%s",
+        ha.get("source_key"),
+        hb.get("source_key"),
+    )
+    return {
+        "headline_a": ha,
+        "headline_b": hb,
+        "hint": (
+            "Это два реальных свежих заголовка из разных лент. Сравни их в шутливом "
+            "стиле Балабола: псевдо-дискуссия, кто перещеголял по абсурду, "
+            "не выдумывай других новостей."
+        ),
+    }
+
+
+@tool("compare_two_headlines")
+def compare_two_headlines_langchain(
+    source_key_a: str | None = None,
+    source_key_b: str | None = None,
+) -> dict[str, Any]:
+    """Два свежих заголовка из **разных** RSS-лент (курсовые источники Балабола).
+
+    Используй, когда пользователь хочет шутливое сравнение «двух миров новостей»,
+    псевдо-дискуссию, «битву заголовков» или вопрос в духе «что сегодня жёстче —
+    у Хабра или у Медузы». Можно не указывать источники — тогда возьму два
+    случайных разных ключа из доступных. Не подставляй для этого два вызова
+    `top_headlines` — этот инструмент заточен под парное сравнение.
+    """
+    return compare_two_headlines_impl(source_key_a, source_key_b)
+
+
+def _dispatch_compare_two_headlines(**kwargs: Any) -> dict[str, Any]:
+    """Прокси в LangChain StructuredTool (схема параметров из @tool)."""
+    return compare_two_headlines_langchain.invoke(kwargs)
+
+
 # ── Tool registry — used by agent_runner ─────────────────────────────────────
 
-TOOL_SCHEMAS: list[dict[str, Any]] = [
+_BASE_TOOL_SCHEMAS: list[dict[str, Any]] = [
     {
         "type": "function",
         "function": {
@@ -306,7 +417,8 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
             "name": "top_headlines",
             "description": (
                 "Возвращает свежие заголовки из конкретного источника. "
-                "Используй когда пользователь хочет 'последние новости' с Хабра, VC, РБК и т.д."
+                "Используй когда пользователь хочет «последние новости» с конкретного источника "
+                "(Хабр, РБК, Лента и др. — см. ключи в описании параметра)."
             ),
             "parameters": {
                 "type": "object",
@@ -373,9 +485,15 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
     },
 ]
 
+# LangChain генерирует OpenAI-совместимую схему для compare_two_headlines
+TOOL_SCHEMAS: list[dict[str, Any]] = _BASE_TOOL_SCHEMAS + [
+    convert_to_openai_tool(compare_two_headlines_langchain),
+]
+
 TOOL_FUNCTIONS: dict[str, Any] = {
-    "rss_search":    rss_search,
-    "top_headlines": top_headlines,
-    "hn_top":        hn_top,
-    "fetch_summary": fetch_summary,
+    "rss_search":             rss_search,
+    "top_headlines":          top_headlines,
+    "hn_top":                 hn_top,
+    "fetch_summary":          fetch_summary,
+    "compare_two_headlines": _dispatch_compare_two_headlines,
 }

@@ -6,6 +6,7 @@ Tools:
   • top_headlines(source_key, max_results)
   • hn_top(n)
   • fetch_summary(url, max_chars)
+  • compare_two_headlines(source_key_a, source_key_b)
 
 Schema format follows MCP spec: inputSchema instead of OpenAI-style parameters.
 """
@@ -13,6 +14,7 @@ Schema format follows MCP spec: inputSchema instead of OpenAI-style parameters.
 from __future__ import annotations
 
 import logging
+import random
 import re
 import textwrap
 from typing import Any
@@ -215,14 +217,87 @@ def fetch_summary(url: str, max_chars: int = 1500) -> dict[str, Any]:
         return {"error": str(exc), "url": url}
 
 
+# ── compare_two_headlines (та же логика, что в services/agent_tools.py) ───────
+
+def _first_headline_from_source(source_key: str) -> dict[str, str] | None:
+    entry = SOURCE_MAP.get(source_key)
+    if not entry:
+        return None
+    name, url = entry
+    items = _fetch_feed(url)
+    if not items:
+        return None
+    it = items[0]
+    return {
+        "title":       it["title"][:300],
+        "link":        it["link"],
+        "source_name": name,
+        "source_key":  source_key,
+        "pubdate":     it.get("pubdate", ""),
+    }
+
+
+def compare_two_headlines(
+    source_key_a: str | None = None,
+    source_key_b: str | None = None,
+) -> dict[str, Any]:
+    """
+    Два свежих заголовка из разных RSS-лент (для MCP; совпадает с локальным агентом).
+    """
+    keys = list(SOURCE_MAP.keys())
+
+    if source_key_a is not None and source_key_b is not None:
+        if source_key_a == source_key_b:
+            return {"error": "Источники должны различаться."}
+        if source_key_a not in SOURCE_MAP or source_key_b not in SOURCE_MAP:
+            return {"error": "Неизвестный ключ источника.", "available_keys": keys}
+        pair = (source_key_a, source_key_b)
+    elif source_key_a is None and source_key_b is None:
+        if len(keys) < 2:
+            return {"error": "Недостаточно источников."}
+        pair = tuple(random.sample(keys, 2))
+    else:
+        return {
+            "error": "Укажи оба ключа или ни одного (тогда выберу два случайных).",
+        }
+
+    ha = _first_headline_from_source(pair[0])
+    hb = _first_headline_from_source(pair[1])
+
+    if not ha or not hb:
+        found: list[dict[str, str]] = []
+        shuffled = keys[:]
+        random.shuffle(shuffled)
+        for k in shuffled:
+            h = _first_headline_from_source(k)
+            if h:
+                found.append(h)
+            if len(found) >= 2:
+                break
+        if len(found) < 2:
+            return {"error": "Не удалось получить заголовки из RSS."}
+        ha, hb = found[0], found[1]
+
+    logger.info("mcp_compare_two_headlines a=%s b=%s", ha.get("source_key"), hb.get("source_key"))
+    return {
+        "headline_a": ha,
+        "headline_b": hb,
+        "hint": (
+            "Два реальных заголовка из разных лент — сравни в шутливом стиле, "
+            "не выдумывай других новостей."
+        ),
+    }
+
+
 # ── MCP Tool registry ─────────────────────────────────────────────────────────
 # Schema format: MCP spec (inputSchema), not OpenAI function-calling (parameters).
 
 TOOL_FUNCTIONS: dict[str, Any] = {
-    "rss_search":    rss_search,
-    "top_headlines": top_headlines,
-    "hn_top":        hn_top,
-    "fetch_summary": fetch_summary,
+    "rss_search":             rss_search,
+    "top_headlines":          top_headlines,
+    "hn_top":                 hn_top,
+    "fetch_summary":          fetch_summary,
+    "compare_two_headlines": compare_two_headlines,
 }
 
 MCP_TOOLS: list[dict[str, Any]] = [
@@ -314,6 +389,33 @@ MCP_TOOLS: list[dict[str, Any]] = [
                 },
             },
             "required": ["url"],
+        },
+    },
+    {
+        "name": "compare_two_headlines",
+        "description": (
+            "Два самых свежих заголовка из двух разных RSS-источников — для шутливого "
+            "сравнения, «битвы абсурда», псевдо-дискуссии. Ключи опциональны: "
+            "если не указать — выберутся два случайных разных источника."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "source_key_a": {
+                    "type": "string",
+                    "description": (
+                        "Ключ первой ленты. Доступные: " + ", ".join(SOURCE_MAP.keys())
+                    ),
+                },
+                "source_key_b": {
+                    "type": "string",
+                    "description": (
+                        "Ключ второй ленты (должен отличаться от первой). "
+                        "Доступные: " + ", ".join(SOURCE_MAP.keys())
+                    ),
+                },
+            },
+            "required": [],
         },
     },
 ]
