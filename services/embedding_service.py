@@ -81,6 +81,11 @@ def vector_to_blob(vec: list[float]) -> bytes:
     return struct.pack(f"{len(vec)}f", *vec)
 
 
+def vectors_to_blobs(vectors: list[list[float]]) -> list[bytes]:
+    """Pack a batch of float vectors into SQLite-friendly BLOBs."""
+    return [vector_to_blob(vec) for vec in vectors]
+
+
 def blob_to_vector(blob: bytes) -> list[float]:
     """Unpack binary BLOB back to float vector."""
     n = len(blob) // 4  # sizeof(float) == 4

@@ -20,6 +20,7 @@ import textwrap
 from typing import Any
 
 import requests
+from services import url_ingestion_service as url_ing_svc
 
 logger = logging.getLogger("mcp_server")
 
@@ -195,23 +196,21 @@ def fetch_summary(url: str, max_chars: int = 1500) -> dict[str, Any]:
         return {"error": "URL must start with http:// or https://", "url": url}
 
     try:
-        resp = _SESSION.get(url, timeout=_REQ_TIMEOUT, allow_redirects=True)
-        resp.raise_for_status()
-        content_type = resp.headers.get("content-type", "")
-        if "html" not in content_type and "text" not in content_type:
-            return {"error": f"Non-text content: {content_type}", "url": url}
-
-        text = _strip_tags(resp.text)
-        text = re.sub(r"\n{3,}", "\n\n", text)
-        text = re.sub(r" {2,}", " ", text)
-        text = text.strip()
-
+        payload = url_ing_svc.fetch_url_document(url)
+        text = payload["text"]
         truncated = len(text) > max_chars
         text = text[:max_chars]
 
         logger.info("tool_fetch_summary url=%s chars=%d truncated=%s", url, len(text), truncated)
-        return {"url": url, "text": text, "truncated": truncated}
-
+        return {
+            "url": payload["url"],
+            "title": payload["title"],
+            "text": text,
+            "truncated": truncated,
+        }
+    except ValueError as exc:
+        logger.warning("fetch_summary_failed url=%s err=%s", url, exc)
+        return {"error": str(exc), "url": url}
     except Exception as exc:
         logger.warning("fetch_summary_failed url=%s err=%s", url, exc)
         return {"error": str(exc), "url": url}

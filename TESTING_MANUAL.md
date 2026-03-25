@@ -46,8 +46,8 @@ sudo journalctl -u blabber -n 50 --no-pager
 
 - [ ] **1.2** Напиши `/help`
   - ✅ Бот ответил разделами (модели, роль, режим, память, цитаты, база знаний, агент, отчёт)
-  - ✅ В тексте упоминаются команды: `/start`, `/models`, `/model`, `/role`, `/mode`, `/reset`, `/clear`, `/voice`, `/remember`, `/prefer`, `/profile`, `/memory`, `/quote`, `/quotes`, `/kb`, `/agent`, `/duel`, `/compare_headlines`, `/report`, `/help`, `/admin`
-  - 💡 *`/role` — роль (персона) бота. `/mode` — режим разговора. `/reset` и `/clear` — очистка истории. `/remember` и `/prefer` — профиль. `/memory` — автопамять. `/quote` и `/quotes` — коллекция цитат. `/kb` — RAG. `/agent` — новостник; `/duel` и `/compare_headlines` — сравнение двух заголовков из разных лент (нужен `/agent on`). `/report` — PDF по чату. `/admin` — только для админов.*
+  - ✅ В тексте упоминаются команды: `/start`, `/models`, `/model`, `/role`, `/mode`, `/reset`, `/clear`, `/voice`, `/remember`, `/prefer`, `/profile`, `/memory`, `/quote`, `/quotes`, `/kb`, `/kb url`, `/kb reindex`, `/agent`, `/agent kb`, `/duel`, `/compare_headlines`, `/report`, `/help`, `/admin`
+  - 💡 *`/role` — роль (персона) бота. `/mode` — режим разговора. `/reset` и `/clear` — очистка истории. `/remember` и `/prefer` — профиль. `/memory` — автопамять. `/quote` и `/quotes` — коллекция цитат. `/kb` — RAG, включая URL и reindex. `/agent` — новостник; `/agent kb` — сохранить ссылку в KB; `/duel` и `/compare_headlines` — сравнение двух заголовков из разных лент (нужен `/agent on`). `/report` — PDF по чату. `/admin` — только для админов.*
 
 - [ ] **1.2a** Команда `/role` — меню выбора роли
   - Напиши `/role`
@@ -723,12 +723,12 @@ sudo journalctl -u blabber -n 50 --no-pager
 
 ## Раздел 15 — Долгосрочная память: база знаний (RAG)
 
-> **Что проверяем:** загрузка документов, индексация, гибридный поиск (BM25 + embeddings),
-> `/kb` управление, автовключение при первом документе.
+> **Что проверяем:** загрузка документов и URL, индексация, гибридный поиск (BM25 + LanceDB),
+> `/kb` управление, автовключение при первом источнике.
 >
-> **Форматы:** TXT, PDF, DOCX, MD
+> **Источники:** TXT, PDF, DOC, DOCX, MD, публичные URL через `/kb url https://...`
 > **Лимиты:** 10 документов, 1 МБ каждый
-> **Гибридный поиск:** BM25 shortlist → embedding rerank (если есть `OPENAI_API_KEY`)
+> **Гибридный поиск:** BM25 shortlist + LanceDB semantic candidates (если есть `OPENAI_API_KEY`)
 
 - [ ] **15.1** Команда `/kb` без документов
   ```
@@ -736,7 +736,7 @@ sudo journalctl -u blabber -n 50 --no-pager
   ```
   - ✅ Бот показал статус: "выключена", "Документов: 0 / 10"
   - ✅ Есть кнопка включения/выключения
-  - ✅ Подсказка: "Загрузи любой файл (TXT, PDF, DOCX, MD)"
+  - ✅ Подсказка: "Загрузи любой файл (TXT, PDF, DOC, DOCX, MD)"
 
 - [ ] **15.2** Загрузка TXT-документа
   - Отправь боту любой `.txt` файл
@@ -810,10 +810,55 @@ sudo journalctl -u blabber -n 50 --no-pager
 
 - [ ] **15.14** Проверка через БД
   ```bash
-  sqlite3 blabber.db "SELECT id, length(embedding) FROM kb_chunks LIMIT 5;"
+  sqlite3 blabber.db "SELECT id, chunk_uid, length(embedding) FROM kb_chunks LIMIT 5;"
+  sqlite3 blabber.db "SELECT id, name, source_type, source_url FROM kb_documents LIMIT 5;"
   ```
+  - ✅ `chunk_uid` не пустой
   - ✅ Если `OPENAI_API_KEY` был при загрузке: `length(embedding)` ≈ 6144 (1536 float × 4 bytes)
   - ✅ Если без ключа: `embedding` = NULL
+  - ✅ `source_type` = `file` для обычных документов, `url` для веб-страниц
+
+- [ ] **15.15** URL ingestion в KB
+  ```
+  /kb url https://example.com/
+  ```
+  - ✅ Бот отвечает, что загружает страницу
+  - ✅ Затем подтверждает, что страница добавлена в базу знаний
+  - ✅ Если KB была выключена — включается автоматически
+
+- [ ] **15.16** Вопрос по URL-странице
+  - Сразу после `/kb url ...` задай вопрос по содержимому страницы
+  - ✅ Бот отвечает с опорой на содержимое страницы, как и для обычного документа
+
+- [ ] **15.17** Удаление KB-источника сбрасывает chat-context
+  - Загрузи документ или URL-страницу
+  - Спроси что-то по источнику и получи ответ
+  - Удали источник через `/kb` или `/kb clear`
+  - Снова задай тот же вопрос
+  - ✅ Бот не отвечает по удалённому источнику
+  - ✅ При очистке/удалении бот сообщает, что контекст чата тоже сброшен
+
+- [ ] **15.18** Rollback retrieval на legacy backend
+  - В `.env` установи `KB_VECTOR_BACKEND=sqlite`, перезапусти бота
+  - Загрузи документ и задай вопрос
+  - ✅ KB продолжает работать
+  - Верни `KB_VECTOR_BACKEND=lancedb`, перезапусти
+
+- [ ] **15.19** Переиндексация KB по сохранённым chunk'ам
+  ```
+  /kb reindex all
+  ```
+  - ✅ Бот сообщает, что переиндексация завершена
+  - ✅ В `/kb` видны `id` документов для точечной команды `/kb reindex <id>`
+  - ✅ После переиндексации вопросы по документам продолжают работать
+  - 💡 *Команда не перечитывает исходные файлы заново, а пересобирает vector index по уже сохранённым chunk'ам.*
+
+- [ ] **15.20** Shadow compare поверх `lancedb`
+  - В `.env` установи `KB_ENABLE_SHADOW_COMPARE=true`, перезапусти бота
+  - Задай вопрос по KB-документу
+  - ✅ Пользовательский ответ не меняется на отдельный legacy-path
+  - ✅ В логах появляется `kb_retrieval_shadow_compare`
+  - Верни `KB_ENABLE_SHADOW_COMPARE=false`, перезапусти
 
 ---
 
@@ -887,6 +932,14 @@ sudo journalctl -u blabber -n 50 --no-pager
   - ✅ Бот запустил агент с явным запросом на инструмент `compare_two_headlines` и вернул шутливое сравнение двух реальных заголовков (внизу может быть блок «📎 Источники»)
   - Повтори с конкретными ключами, например: `/duel habr meduza`
   - ✅ Ответ снова опирается на два разных источника (или бот честно сообщает об ошибке сети/RSS)
+
+- [ ] **16.7** Команда `/agent kb <url>` сохраняет страницу в KB
+  ```
+  /agent kb https://example.com/
+  ```
+  - ✅ Бот сообщает, что сохраняет страницу в KB
+  - ✅ Затем подтверждает успешное сохранение
+  - ✅ После этого `/kb` показывает URL-источник
 
 ---
 
@@ -1259,3 +1312,99 @@ sqlite3 blabber.db ".schema user_profiles"
 sqlite3 blabber.db ".schema kb_chunks"
 sqlite3 blabber.db "PRAGMA table_info(kb_chunks);" | grep embedding
 ```
+
+---
+
+## Раздел 15c — KB Migration Safety Checks
+
+> **Что проверяем:** безопасную миграцию KB с legacy `embedding BLOB` на `LanceDB` без регрессий в пользовательском сценарии.
+>
+> **Статус:** активный раздел. Актуален после завершения Sprint 1–6.
+
+- [ ] **15c.1** Legacy path остается рабочим после включения `dual-write`
+  - Загрузить документ в KB
+  - ✅ Документ индексируется и доступен для ответов
+  - ✅ При недоступном `LanceDB` пользовательский сценарий не ломается
+
+- [ ] **15c.2** Новый документ пишет vector entries в `LanceDB`
+  - Загрузить документ при включенном `KB_ENABLE_DUAL_WRITE`
+  - ✅ В `SQLite` есть документ и чанки
+  - ✅ В `LanceDB` появились соответствующие vector entries
+
+- [ ] **15c.3** Ошибка `LanceDB` не ломает загрузку документа
+  - Искусственно сломать доступ к `LanceDB`
+  - ✅ Бот не падает
+  - ✅ Документ остается доступным хотя бы через legacy path / `BM25-only`
+
+- [ ] **15c.4** Read path можно вернуть на legacy backend
+  - Переключить `KB_VECTOR_BACKEND=sqlite`
+  - ✅ Retrieval снова идет по старому пути
+  - ✅ `/kb` и ответы по документам продолжают работать
+
+- [ ] **15c.5** `LanceDB`-retrieval не ухудшает ответы по KB
+  - Включить новый backend
+  - Задать вопросы по документам с точными совпадениями и синонимами
+  - ✅ Ответы корректны и не хуже legacy path
+
+- [ ] **15c.6** Graceful degradation без embeddings
+  - Убрать `OPENAI_API_KEY`
+  - ✅ KB продолжает отвечать через `BM25-only`
+  - ✅ Нет падений индексации и retrieval
+
+- [ ] **15c.7** Удаление документа чистит оба слоя хранения
+  - Удалить документ через `/kb`
+  - ✅ Чанки удалены из `SQLite`
+  - ✅ Vector entries удалены из `LanceDB`
+
+- [ ] **15c.8** Повторная индексация не создает неконтролируемых дублей
+  - Проиндексировать один и тот же источник повторно
+  - ✅ Поведение предсказуемо и задокументировано
+  - ✅ Нет необъяснимого роста дублей в `LanceDB`
+
+- [ ] **15c.9** URL ingestion включён и работает в общей KB
+  - Проверить флаг `KB_ENABLE_URL_INGESTION`
+  - ✅ `/kb url https://...` доступен пользователю
+  - ✅ URL-страницы попадают в тот же KB pipeline, что и файлы
+
+- [ ] **15c.10** Legacy BLOB по умолчанию больше не пополняется новыми документами
+  - Убедиться, что `KB_WRITE_LEGACY_EMBEDDING=false`
+  - Загрузить новый документ
+  - ✅ KB работает через `LanceDB`
+  - ✅ При необходимости rollback buffer можно освежить отдельно через `KB_WRITE_LEGACY_EMBEDDING=true` + `/kb reindex all`
+
+- [ ] **15c.11** Agent может сохранить URL в KB
+  - Выполнить `/agent kb https://example.com/`
+  - ✅ Страница сохраняется в ту же KB
+  - ✅ После этого `/kb` показывает URL-источник
+
+---
+
+## Раздел 15d — Release Smoke Checklist для KB
+
+> **Что проверяем:** финальный короткий smoke checklist перед релизом KB-архитектуры на `LanceDB`.
+
+- [ ] `/kb` открывается
+- [ ] загрузка TXT/PDF/DOC/DOCX/MD работает
+- [ ] `/kb url https://...` работает
+- [ ] `/kb reindex all` работает
+- [ ] вопрос по документу работает
+- [ ] вопрос по URL-странице работает
+- [ ] удаление одного источника работает
+- [ ] `/kb clear` работает
+- [ ] после удаления/очистки нет «призрачных» ответов
+- [ ] `KB_VECTOR_BACKEND=lancedb` работает
+- [ ] `KB_VECTOR_BACKEND=sqlite` как rollback тоже работает
+- [ ] `KB_ENABLE_SHADOW_COMPARE=true` логирует сравнение без поломки ответа
+- [ ] сценарий без `OPENAI_API_KEY` не ломает KB
+
+### Мониторинг после релиза
+
+- [ ] Посмотреть логи на события:
+  - `kb_retrieval_backend_selected`
+  - `kb_retrieval_lancedb_failed`
+  - `kb_retrieval_fallback_bm25`
+  - `kb_dual_write_started`
+  - `kb_dual_write_finished`
+  - `kb_lancedb_write_failed`
+- [ ] Проверить, что нет всплеска ошибок `LanceDB`
+- [ ] Проверить, что retrieval не возвращает пустой результат там, где раньше KB отвечала

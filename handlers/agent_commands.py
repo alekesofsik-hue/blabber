@@ -5,6 +5,7 @@ Commands:
   /agent              — show current status + quick-access buttons
   /agent on           — enable agent mode (incoming messages go through agent loop)
   /agent off          — disable agent mode (back to normal Balabool)
+  /agent kb <url>     — save a URL page into the shared KB
   /duel               — явный запуск сравнения двух заголовков (compare_two_headlines)
   /compare_headlines  — то же, что /duel
 """
@@ -19,7 +20,7 @@ from telebot import types
 
 from middleware.auth import with_user_check
 from services.config_registry import get_setting
-from services.agent_tools import SOURCE_MAP, hn_top, top_headlines
+from services.agent_tools import SOURCE_MAP, hn_top, save_url_to_kb_for_user, top_headlines
 from services.limiter import check_limits
 from services.mcp_client import get_tools
 from user_storage import get_user_voice, is_agent_enabled, is_voice_enabled, set_agent_enabled
@@ -85,6 +86,8 @@ def register_agent_handlers(bot: telebot.TeleBot) -> None:
                 "Теперь я — <b>Балабол-новостник</b>: сначала ищу свежие данные, "
                 "потом трещу о них.\n\n"
                 "Просто напиши что тебя интересует — сам разберусь откуда тащить инфу.\n"
+                "Если хочешь сохранить страницу в базу знаний: "
+                "<code>/agent kb https://example.com/article</code>\n"
                 "Для явного сравнения двух заголовков из разных лент: "
                 "<code>/duel</code> или <code>/compare_headlines</code> "
                 "(или с ключами: <code>/duel habr meduza</code>).\n\n"
@@ -101,6 +104,43 @@ def register_agent_handlers(bot: telebot.TeleBot) -> None:
                 "Вернулся в обычный балабольский режим. Быстро, без поисков.",
                 parse_mode="HTML",
             )
+            return
+
+        if arg in {"kb", "save_url"}:
+            if len(parts) < 3:
+                bot.send_message(
+                    message.chat.id,
+                    "🌐 <b>Как сохранить ссылку через agent</b>\n\n"
+                    "Используй:\n"
+                    "<code>/agent kb https://example.com/article</code>\n\n"
+                    "Я добавлю страницу в твою KB тем же pipeline, что и /kb url.",
+                    parse_mode="HTML",
+                )
+                return
+
+            url = parts[2].strip()
+            wait = bot.send_message(
+                message.chat.id,
+                "⏳ Агент сохраняет страницу в базу знаний...",
+            )
+            result = save_url_to_kb_for_user(user_id, url)
+            if result.get("ok"):
+                kb_note = "\n\n✅ База знаний автоматически включена." if result.get("kb_auto_enabled") else ""
+                bot.edit_message_text(
+                    "✅ <b>Страница сохранена в KB через agent</b>\n\n"
+                    f"{result.get('message', '')}{kb_note}\n\n"
+                    "Проверить KB: /kb",
+                    message.chat.id,
+                    wait.message_id,
+                    parse_mode="HTML",
+                )
+            else:
+                error = result.get("message") or result.get("error") or "неизвестная ошибка"
+                bot.edit_message_text(
+                    f"❌ Не получилось сохранить страницу в KB:\n{error}",
+                    message.chat.id,
+                    wait.message_id,
+                )
             return
 
         # ── unknown subcommand → show status ──────────────────────────────────
@@ -271,11 +311,13 @@ def _build_agent_status(user_id: int) -> tuple[str, types.InlineKeyboardMarkup]:
         + "📰 Выдавать топ заголовков по источнику\n"
         + "🔥 Показывать тренды Hacker News\n"
         + "🌐 Читать и пересказывать страницу по URL\n"
+        + "📚 Сохранять URL-страницу в KB: <code>/agent kb https://...</code>\n"
         + "⚔️ <code>/duel</code> — два свежих заголовка из разных лент (compare_two_headlines)\n\n"
         + f"<b>Источники:</b>\n{sources_list}\n\n"
         + "<i>В agent-режиме каждое твоё сообщение обрабатывается агентом "
         + "(он сам решает, нужно ли что-то искать). Команды <code>/duel</code> и "
         + "<code>/compare_headlines</code> — явное сравнение двух лент (нужен включённый режим). "
+        + "Для явного сохранения ссылки в KB: <code>/agent kb https://...</code>. "
         + "Кнопки ниже — быстрый просмотр заголовков без включения режима.</i>"
     )
 

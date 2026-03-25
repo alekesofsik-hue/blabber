@@ -12,22 +12,22 @@ collection is isolated and can be opened/closed cheaply.
 from __future__ import annotations
 
 import logging
-import os
 import uuid
-from pathlib import Path
 from typing import Any
 
 import pyarrow as pa
 
 from database import get_connection
+from repositories import lancedb_store
 
 logger = logging.getLogger("blabber")
 
-# LanceDB data directory: next to the SQLite database file
-_PROJECT_ROOT = Path(__file__).resolve().parent.parent
-_LANCE_DIR = Path(os.environ.get("LANCEDB_PATH", str(_PROJECT_ROOT / "lancedb_data")))
-
 EMBEDDING_DIM = 1536  # text-embedding-3-small
+_QUOTES_SCHEMA = pa.schema([
+    pa.field("id", pa.string()),
+    pa.field("text", pa.string()),
+    pa.field("vector", pa.list_(pa.float32(), EMBEDDING_DIM)),
+])
 
 
 # ── LanceDB helpers ───────────────────────────────────────────────────────────
@@ -39,21 +39,8 @@ def _get_lance_table(user_db_id: int):
     Table name: quotes_{user_db_id}
     Schema: id (str), text (str), vector (fixed-size list of float32)
     """
-    import lancedb
-
-    _LANCE_DIR.mkdir(parents=True, exist_ok=True)
-    db = lancedb.connect(str(_LANCE_DIR))
     table_name = f"quotes_{user_db_id}"
-
-    if table_name not in db.table_names():
-        schema = pa.schema([
-            pa.field("id", pa.string()),
-            pa.field("text", pa.string()),
-            pa.field("vector", pa.list_(pa.float32(), EMBEDDING_DIM)),
-        ])
-        db.create_table(table_name, schema=schema)
-
-    return db.open_table(table_name)
+    return lancedb_store.open_table(table_name, _QUOTES_SCHEMA)
 
 
 # ── SQLite helpers ────────────────────────────────────────────────────────────
@@ -95,8 +82,11 @@ def add_quote(
     # LanceDB: vector index
     if vector is not None:
         try:
-            tbl = _get_lance_table(user_db_id)
-            tbl.add([{"id": lance_id, "text": text, "vector": vector}])
+            lancedb_store.add_rows(
+                f"quotes_{user_db_id}",
+                _QUOTES_SCHEMA,
+                [{"id": lance_id, "text": text, "vector": vector}],
+            )
         except Exception as exc:
             logger.warning(
                 "quotes_lance_add_failed",
@@ -127,8 +117,11 @@ def delete_quote(telegram_id: int, quote_id: int) -> bool:
 
     # Remove from LanceDB
     try:
-        tbl = _get_lance_table(user_db_id)
-        tbl.delete(f"id = '{lance_id}'")
+        lancedb_store.delete_rows(
+            f"quotes_{user_db_id}",
+            _QUOTES_SCHEMA,
+            f"id = '{lance_id}'",
+        )
     except Exception as exc:
         logger.warning(
             "quotes_lance_delete_failed",
@@ -154,11 +147,7 @@ def delete_all_quotes(telegram_id: int) -> int:
 
     # Drop LanceDB table entirely (faster than per-row delete)
     try:
-        import lancedb
-        db = lancedb.connect(str(_LANCE_DIR))
-        table_name = f"quotes_{user_db_id}"
-        if table_name in db.table_names():
-            db.drop_table(table_name)
+        lancedb_store.drop_table(f"quotes_{user_db_id}")
     except Exception as exc:
         logger.warning(
             "quotes_lance_drop_failed",
@@ -254,11 +243,11 @@ def semantic_search(
         return []
 
     try:
-        tbl = _get_lance_table(user_db_id)
-        results = (
-            tbl.search(query_vector)
-            .limit(top_k)
-            .to_list()
+        results = lancedb_store.search_rows(
+            f"quotes_{user_db_id}",
+            _QUOTES_SCHEMA,
+            query_vector,
+            limit=top_k,
         )
         return [
             {"lance_id": r["id"], "text": r["text"], "distance": r.get("_distance", 0.0)}

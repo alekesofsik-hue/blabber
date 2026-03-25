@@ -25,9 +25,15 @@ from typing import Any
 from openai import OpenAI
 
 import services.mcp_client as mcp_client
-from services.agent_tools import TOOL_FUNCTIONS, TOOL_SCHEMAS
+from services.agent_tools import (
+    TOOL_FUNCTIONS,
+    TOOL_SCHEMAS,
+    reset_active_agent_user_id,
+    set_active_agent_user_id,
+)
 
 logger = logging.getLogger("blabber")
+LOCAL_ONLY_TOOLS = {"save_url_to_kb"}
 
 # ── Configuration ─────────────────────────────────────────────────────────────
 
@@ -45,6 +51,8 @@ AGENT_SYSTEM = (
     "используй инструменты, чтобы найти реальные данные, а потом болтай о них "
     "с юмором и азартом. Цитируй заголовки, шути, отвлекайся, трепись — "
     "но основу бери из свежих данных, которые получил от инструментов. "
+    "Если пользователь прямо просит сохранить ссылку или страницу в базу знаний, "
+    "используй save_url_to_kb. Если он просто хочет понять, о чём статья — используй fetch_summary. "
     "Если инструменты ничего не нашли или недоступны — честно скажи об этом, "
     "но не скучно, а как настоящий балабол.\n\n"
     "ВАЖНО: когда упоминаешь конкретную статью или новость из результатов инструментов, "
@@ -157,6 +165,12 @@ def _extract_sources(tool_name: str, result_json: str) -> list[dict[str, str]]:
     elif tool_name == "fetch_summary":
         url = data.get("url", "").strip()
         if url and url.startswith("http"):
+            title = data.get("title", "").strip()
+            sources.append({"title": title or url, "url": url})
+
+    elif tool_name == "save_url_to_kb":
+        url = data.get("url", "").strip()
+        if url and url.startswith("http"):
             sources.append({"title": url, "url": url})
 
     elif tool_name == "compare_two_headlines":
@@ -211,7 +225,7 @@ def _dispatch_tool(name: str, arguments: str) -> str:
         args = {}
 
     # ── Try MCP server first ──────────────────────────────────────────────────
-    if mcp_client.is_configured():
+    if name not in LOCAL_ONLY_TOOLS and mcp_client.is_configured():
         result = mcp_client.call_tool(name, args)
         # Propagate to local fallback only on "server unavailable" errors
         if "error" not in result or not any(
@@ -262,139 +276,131 @@ def run_agent(user_message: str, user_id: int) -> str:
         client, model = _make_client()
     except ValueError as exc:
         return str(exc)
+    token = set_active_agent_user_id(user_id)
+    try:
+        messages: list[dict[str, Any]] = [
+            {"role": "system", "content": AGENT_SYSTEM},
+            {"role": "user",   "content": user_message},
+        ]
 
-    messages: list[dict[str, Any]] = [
-        {"role": "system", "content": AGENT_SYSTEM},
-        {"role": "user",   "content": user_message},
-    ]
+        session: dict[str, Any] = {
+            "ts":           datetime.now(UTC).isoformat(),
+            "user_message": user_message,
+            "model":        model,
+            "steps":        [],
+            "sources":      [],
+            "final":        "",
+        }
 
-    session: dict[str, Any] = {
-        "ts":           datetime.now(UTC).isoformat(),
-        "user_message": user_message,
-        "model":        model,
-        "steps":        [],
-        "sources":      [],
-        "final":        "",
-    }
+        # Accumulate sources across all tool calls in this session
+        all_sources: list[dict[str, str]] = []
+        final_answer = ""
 
-    # Accumulate sources across all tool calls in this session
-    all_sources: list[dict[str, str]] = []
-    final_answer = ""
+        for step in range(MAX_STEPS):
+            try:
+                response = client.chat.completions.create(
+                    model=model,
+                    messages=messages,
+                    tools=TOOL_SCHEMAS,
+                    tool_choice="auto",
+                    temperature=0.8,
+                    max_tokens=2000,
+                )
+            except Exception as exc:
+                logger.warning("agent_llm_call_failed step=%d err=%s", step, exc)
+                error_msg = str(exc)
+                session["steps"].append({"step": step, "error": error_msg})
+                final_answer = (
+                    f"Упс, что-то пошло не так на шаге {step + 1}: {error_msg}\n"
+                    "Попробуй переформулировать запрос или переключись в обычный режим /agent off"
+                )
+                break
 
-    for step in range(MAX_STEPS):
-        try:
-            response = client.chat.completions.create(
-                model=model,
-                messages=messages,
-                tools=TOOL_SCHEMAS,
-                tool_choice="auto",
-                temperature=0.8,
-                max_tokens=2000,
-            )
-        except Exception as exc:
-            logger.warning("agent_llm_call_failed step=%d err=%s", step, exc)
-            error_msg = str(exc)
-            session["steps"].append({"step": step, "error": error_msg})
-            final_answer = (
-                f"Упс, что-то пошло не так на шаге {step + 1}: {error_msg}\n"
-                "Попробуй переформулировать запрос или переключись в обычный режим /agent off"
-            )
-            break
+            choice = response.choices[0]
+            msg = choice.message
+            step_log: dict[str, Any] = {"step": step}
 
-        choice = response.choices[0]
-        msg = choice.message
-        step_log: dict[str, Any] = {"step": step}
+            if not msg.tool_calls:
+                final_answer = msg.content or ""
+                step_log["type"] = "final"
+                step_log["answer_len"] = len(final_answer)
+                session["steps"].append(step_log)
+                logger.info("agent_final_answer step=%d user_id=%s len=%d", step, user_id, len(final_answer))
+                break
 
-        # ── No tool call → final answer ───────────────────────────────────────
-        if not msg.tool_calls:
-            final_answer = msg.content or ""
-            step_log["type"] = "final"
-            step_log["answer_len"] = len(final_answer)
+            step_log["type"] = "tool_calls"
+            step_log["calls"] = []
+            messages.append({
+                "role":       "assistant",
+                "content":    msg.content,
+                "tool_calls": [
+                    {
+                        "id":       tc.id,
+                        "type":     "function",
+                        "function": {
+                            "name":      tc.function.name,
+                            "arguments": tc.function.arguments,
+                        },
+                    }
+                    for tc in msg.tool_calls
+                ],
+            })
+
+            for tc in msg.tool_calls:
+                tool_name = tc.function.name
+                tool_args = tc.function.arguments
+                logger.info("agent_tool_call step=%d tool=%s user_id=%s", step, tool_name, user_id)
+
+                observation = _dispatch_tool(tool_name, tool_args)
+                step_sources = _extract_sources(tool_name, observation)
+                all_sources.extend(step_sources)
+
+                messages.append({
+                    "role":         "tool",
+                    "tool_call_id": tc.id,
+                    "content":      observation,
+                })
+
+                step_log["calls"].append({
+                    "tool":       tool_name,
+                    "args":       tool_args,
+                    "result_len": len(observation),
+                    "sources":    step_sources,
+                })
+
             session["steps"].append(step_log)
-            logger.info("agent_final_answer step=%d user_id=%s len=%d", step, user_id, len(final_answer))
-            break
 
-        # ── Process tool calls ────────────────────────────────────────────────
-        step_log["type"] = "tool_calls"
-        step_log["calls"] = []
+        else:
+            logger.warning("agent_max_steps_reached user_id=%s", user_id)
+            try:
+                messages.append({
+                    "role":    "user",
+                    "content": "Подведи итог того, что ты нашёл, кратко и по-балабольски.",
+                })
+                fallback = client.chat.completions.create(
+                    model=model,
+                    messages=messages,
+                    temperature=0.8,
+                    max_tokens=1000,
+                )
+                final_answer = fallback.choices[0].message.content or "Ничего не нашёл, не обессудь!"
+            except Exception:
+                final_answer = "Слишком много шагов — запутался! Попробуй спросить по-другому."
 
-        # Append the assistant message with tool_calls to conversation
-        messages.append({
-            "role":       "assistant",
-            "content":    msg.content,
-            "tool_calls": [
-                {
-                    "id":       tc.id,
-                    "type":     "function",
-                    "function": {
-                        "name":      tc.function.name,
-                        "arguments": tc.function.arguments,
-                    },
-                }
-                for tc in msg.tool_calls
-            ],
-        })
+        sources_block = _build_sources_block(all_sources)
+        if sources_block:
+            final_answer = final_answer + sources_block
 
-        for tc in msg.tool_calls:
-            tool_name = tc.function.name
-            tool_args = tc.function.arguments
-            logger.info("agent_tool_call step=%d tool=%s user_id=%s", step, tool_name, user_id)
+        dt_ms = int((time.monotonic() - t_start) * 1000)
+        session["final"] = final_answer
+        session["sources"] = all_sources
+        session["duration_ms"] = dt_ms
+        _append_session(user_id, session)
 
-            observation = _dispatch_tool(tool_name, tool_args)
-
-            # ── Collect sources from this tool result ─────────────────────────
-            step_sources = _extract_sources(tool_name, observation)
-            all_sources.extend(step_sources)
-
-            # Append tool result
-            messages.append({
-                "role":         "tool",
-                "tool_call_id": tc.id,
-                "content":      observation,
-            })
-
-            step_log["calls"].append({
-                "tool":       tool_name,
-                "args":       tool_args,
-                "result_len": len(observation),
-                "sources":    step_sources,
-            })
-
-        session["steps"].append(step_log)
-
-    else:
-        # Exhausted MAX_STEPS without a final answer — ask LLM to summarise
-        logger.warning("agent_max_steps_reached user_id=%s", user_id)
-        try:
-            messages.append({
-                "role":    "user",
-                "content": "Подведи итог того, что ты нашёл, кратко и по-балабольски.",
-            })
-            fallback = client.chat.completions.create(
-                model=model,
-                messages=messages,
-                temperature=0.8,
-                max_tokens=1000,
-            )
-            final_answer = fallback.choices[0].message.content or "Ничего не нашёл, не обессудь!"
-        except Exception:
-            final_answer = "Слишком много шагов — запутался! Попробуй спросить по-другому."
-
-    # ── Append sources block ──────────────────────────────────────────────────
-    sources_block = _build_sources_block(all_sources)
-    if sources_block:
-        final_answer = final_answer + sources_block
-
-    dt_ms = int((time.monotonic() - t_start) * 1000)
-    session["final"] = final_answer
-    session["sources"] = all_sources
-    session["duration_ms"] = dt_ms
-
-    # Export to memory.json (ДЗ artifact — does not affect bot UX)
-    _append_session(user_id, session)
-
-    logger.info(
-        "agent_run_complete user_id=%s steps=%d sources=%d duration_ms=%d final_len=%d",
-        user_id, len(session["steps"]), len(all_sources), dt_ms, len(final_answer),
-    )
-    return final_answer
+        logger.info(
+            "agent_run_complete user_id=%s steps=%d sources=%d duration_ms=%d final_len=%d",
+            user_id, len(session["steps"]), len(all_sources), dt_ms, len(final_answer),
+        )
+        return final_answer
+    finally:
+        reset_active_agent_user_id(token)

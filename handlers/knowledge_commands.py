@@ -53,7 +53,90 @@ def register_knowledge_handlers(bot: telebot.TeleBot) -> None:
             if arg == "clear":
                 kb_svc.clear_all(user_id)
                 set_kb_enabled(user_id, False)
-                bot.send_message(message.chat.id, "🗑 База знаний полностью очищена.")
+                bot.send_message(
+                    message.chat.id,
+                    "🗑 База знаний полностью очищена.\n\n"
+                    "🧹 Контекст текущего чата тоже сброшен, чтобы я не тянул факты из удалённых документов.",
+                )
+                return
+
+            if arg == "reindex":
+                target = parts[2].strip().lower() if len(parts) >= 3 else "all"
+                wait_msg = bot.send_message(
+                    message.chat.id,
+                    "⏳ Переиндексирую KB по уже сохранённым фрагментам...",
+                )
+
+                if target == "all":
+                    ok, result_msg = kb_svc.reindex_all_documents(user_id)
+                else:
+                    try:
+                        doc_id = int(target)
+                    except ValueError:
+                        bot.edit_message_text(
+                            "❌ Использование: /kb reindex all или /kb reindex <id>\n"
+                            "Посмотреть id можно в списке /kb.",
+                            message.chat.id,
+                            wait_msg.message_id,
+                        )
+                        return
+                    ok, result_msg = kb_svc.reindex_document(user_id, doc_id)
+
+                if ok:
+                    bot.edit_message_text(
+                        f"✅ <b>Переиндексация завершена</b>\n\n"
+                        f"{result_msg}\n\n"
+                        "Управление: /kb",
+                        message.chat.id,
+                        wait_msg.message_id,
+                        parse_mode="HTML",
+                    )
+                else:
+                    bot.edit_message_text(
+                        f"❌ Не получилось переиндексировать KB:\n{result_msg}",
+                        message.chat.id,
+                        wait_msg.message_id,
+                    )
+                return
+
+            if arg == "url":
+                if len(parts) < 3:
+                    bot.send_message(
+                        message.chat.id,
+                        "🌐 <b>Как пользоваться /kb url</b>\n\n"
+                        "Отправь ссылку так:\n"
+                        "<code>/kb url https://example.com/article</code>\n\n"
+                        "Я загружу страницу, превращу её в текст и добавлю в общую базу знаний.",
+                        parse_mode="HTML",
+                    )
+                    return
+
+                url = parts[2].strip()
+                wait_msg = bot.send_message(
+                    message.chat.id,
+                    "⏳ Загружаю страницу и добавляю её в базу знаний...",
+                )
+                ok, result_msg = kb_svc.index_url(user_id, url)
+                if ok:
+                    kb_note = ""
+                    if not is_kb_enabled(user_id):
+                        set_kb_enabled(user_id, True)
+                        kb_note = "\n\n✅ База знаний автоматически включена."
+                    bot.edit_message_text(
+                        f"✅ <b>Страница добавлена в базу знаний!</b>\n"
+                        f"📄 {result_msg}{kb_note}\n\n"
+                        "Теперь можно задавать вопросы по этой странице.\n"
+                        "Управление: /kb",
+                        message.chat.id,
+                        wait_msg.message_id,
+                        parse_mode="HTML",
+                    )
+                else:
+                    bot.edit_message_text(
+                        f"❌ Не получилось добавить страницу:\n{result_msg}",
+                        message.chat.id,
+                        wait_msg.message_id,
+                    )
                 return
 
         _send_kb_status(bot, message.chat.id, user_id)
@@ -87,7 +170,7 @@ def register_knowledge_handlers(bot: telebot.TeleBot) -> None:
         if data == "kb_clear_all":
             kb_svc.clear_all(user_id)
             set_kb_enabled(user_id, False)
-            bot.answer_callback_query(call.id, "База знаний очищена!")
+            bot.answer_callback_query(call.id, "KB очищена, контекст чата сброшен")
             _refresh_kb_status(bot, call)
             return
 
@@ -105,7 +188,7 @@ def register_knowledge_handlers(bot: telebot.TeleBot) -> None:
             bot.send_message(
                 message.chat.id,
                 f"📎 Получен файл <b>{filename}</b>, но этот тип не поддерживается.\n\n"
-                f"Поддерживаемые форматы: TXT, PDF, DOCX, MD\n\n"
+                f"Поддерживаемые форматы: TXT, PDF, DOC, DOCX, MD\n\n"
                 "Управление базой знаний: /kb",
                 parse_mode="HTML",
             )
@@ -182,22 +265,27 @@ def _build_kb_message(user_id: int) -> tuple[str, types.InlineKeyboardMarkup]:
         text += "<b>Документы:</b>\n"
         for doc in docs:
             size_kb = max(1, doc["size_bytes"] // 1024)
-            text += f"• {doc['name']} ({size_kb} КБ, {doc['chunk_count']} фрагм.)\n"
+            icon = "🌐" if doc.get("source_type") == "url" else "📄"
+            text += (
+                f"• {icon} <code>id {doc['id']}</code> — {doc['name']} "
+                f"({size_kb} КБ, {doc['chunk_count']} фрагм.)\n"
+            )
             short_name = doc["name"][:35] + ("…" if len(doc["name"]) > 35 else "")
             kb.add(types.InlineKeyboardButton(
-                f"🗑 {short_name}",
+                f"🗑 {icon} #{doc['id']} {short_name}",
                 callback_data=f"kb_del_{doc['id']}",
             ))
         kb.add(types.InlineKeyboardButton("🗑 Удалить все документы", callback_data="kb_clear_all"))
     else:
         text += (
             "Пока нет документов.\n\n"
-            "Загрузи любой файл (TXT, PDF, DOCX, MD) прямо в чат — "
-            "я его проиндексирую и буду отвечать на вопросы по нему!"
+            "Загрузи любой файл (TXT, PDF, DOC, DOCX, MD) прямо в чат или добавь страницу через "
+            "<code>/kb url https://...</code> — я проиндексирую её и буду отвечать на вопросы!"
         )
 
     text += (
-        "\n\n<i>Команды: /kb on · /kb off · /kb clear\n"
+        "\n\n<i>Команды: /kb on · /kb off · /kb clear · /kb url https://... · /kb reindex all · /kb reindex id\n"
+        "id документа смотри в списке выше.\n"
         "Просто пришли файл — он добавится автоматически</i>"
     )
 

@@ -12,6 +12,7 @@ Tools available to the agent:
 
 from __future__ import annotations
 
+from contextvars import ContextVar, Token
 import logging
 import random
 import re
@@ -21,6 +22,9 @@ from typing import Any
 import requests
 from langchain_core.tools import tool
 from langchain_core.utils.function_calling import convert_to_openai_tool
+from user_storage import is_kb_enabled, set_kb_enabled
+
+from services import url_ingestion_service as url_ing_svc
 
 logger = logging.getLogger("blabber")
 
@@ -45,6 +49,7 @@ _SESSION = requests.Session()
 _SESSION.headers["User-Agent"] = "BlabberBot/1.0 (+https://github.com/blabber)"
 
 _REQ_TIMEOUT = 8  # seconds
+_ACTIVE_AGENT_USER_ID: ContextVar[int | None] = ContextVar("active_agent_user_id", default=None)
 
 
 # ── Internal helpers ──────────────────────────────────────────────────────────
@@ -245,27 +250,67 @@ def fetch_summary(url: str, max_chars: int = 1500) -> dict[str, Any]:
         return {"error": "URL must start with http:// or https://", "url": url}
 
     try:
-        resp = _SESSION.get(url, timeout=_REQ_TIMEOUT, allow_redirects=True)
-        resp.raise_for_status()
-        content_type = resp.headers.get("content-type", "")
-        if "html" not in content_type and "text" not in content_type:
-            return {"error": f"Non-text content: {content_type}", "url": url}
-
-        text = _strip_tags(resp.text)
-        # collapse runs of whitespace / blank lines
-        text = re.sub(r"\n{3,}", "\n\n", text)
-        text = re.sub(r" {2,}", " ", text)
-        text = text.strip()
-
+        payload = url_ing_svc.fetch_url_document(url)
+        text = payload["text"]
         truncated = len(text) > max_chars
         text = text[:max_chars]
-
         logger.info("agent_tool_fetch_summary url=%s chars=%d truncated=%s", url, len(text), truncated)
-        return {"url": url, "text": text, "truncated": truncated}
-
+        return {
+            "url": payload["url"],
+            "title": payload["title"],
+            "text": text,
+            "truncated": truncated,
+        }
+    except ValueError as exc:
+        logger.warning("fetch_summary_failed url=%s err=%s", url, exc)
+        return {"error": str(exc), "url": url}
     except Exception as exc:
         logger.warning("fetch_summary_failed url=%s err=%s", url, exc)
         return {"error": str(exc), "url": url}
+
+
+def set_active_agent_user_id(user_id: int) -> Token:
+    """Bind the current Telegram user to stateful local agent tools."""
+    return _ACTIVE_AGENT_USER_ID.set(user_id)
+
+
+def reset_active_agent_user_id(token: Token) -> None:
+    """Reset the active Telegram user binding for local agent tools."""
+    _ACTIVE_AGENT_USER_ID.reset(token)
+
+
+def save_url_to_kb_for_user(user_id: int, url: str) -> dict[str, Any]:
+    """Persist a URL into the user's KB and auto-enable KB if needed."""
+    from services import knowledge_service as kb_svc
+
+    ok, message = kb_svc.index_url(user_id, url)
+    auto_enabled = False
+    if ok and not is_kb_enabled(user_id):
+        set_kb_enabled(user_id, True)
+        auto_enabled = True
+
+    logger.info(
+        "agent_tool_save_url_to_kb user_id=%s ok=%s auto_enabled=%s",
+        user_id,
+        ok,
+        auto_enabled,
+    )
+    return {
+        "ok": ok,
+        "url": url,
+        "message": message,
+        "kb_auto_enabled": auto_enabled,
+    }
+
+
+def save_url_to_kb(url: str) -> dict[str, Any]:
+    """
+    Stateful local-only tool: save a URL into the current user's KB.
+    """
+    user_id = _ACTIVE_AGENT_USER_ID.get()
+    if user_id is None:
+        return {"ok": False, "url": url, "error": "Agent user context is missing"}
+    return save_url_to_kb_for_user(user_id, url)
 
 
 # ── compare_two_headlines (VPg03: схема для OpenAI из LangChain @tool) ────────
@@ -483,6 +528,27 @@ _BASE_TOOL_SCHEMAS: list[dict[str, Any]] = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "save_url_to_kb",
+            "description": (
+                "Сохраняет страницу по URL в базу знаний пользователя (KB). "
+                "Используй только когда пользователь явно просит добавить/сохранить ссылку в KB, "
+                "а не просто пересказать страницу."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "url": {
+                        "type": "string",
+                        "description": "HTTP/HTTPS URL страницы, которую нужно сохранить в KB",
+                    },
+                },
+                "required": ["url"],
+            },
+        },
+    },
 ]
 
 # LangChain генерирует OpenAI-совместимую схему для compare_two_headlines
@@ -495,5 +561,6 @@ TOOL_FUNCTIONS: dict[str, Any] = {
     "top_headlines":          top_headlines,
     "hn_top":                 hn_top,
     "fetch_summary":          fetch_summary,
+    "save_url_to_kb":         save_url_to_kb,
     "compare_two_headlines": _dispatch_compare_two_headlines,
 }
