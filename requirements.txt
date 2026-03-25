@@ -1,6 +1,6 @@
 pyTelegramBotAPI>=4.14.0
 openai>=1.0.0
-# VPg03 ДЗ: инструмент агента через LangChain @tool + convert_to_openai_tool
+# Инструмент агента через LangChain @tool + convert_to_openai_tool
 langchain-core>=0.3.0
 python-dotenv>=1.0.0
 httpx>=0.23.0
@@ -13,6 +13,6 @@ python-docx>=1.1.0
 # Report generation (PDF from conversation history)
 jinja2>=3.1.0
 weasyprint>=60.0
-# Vector database for quotes collection (DZ VPg02)
+# Vector database for quotes collection
 lancedb>=0.20.0
 pyarrow>=14.0.0

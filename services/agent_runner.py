@@ -6,7 +6,7 @@ Architecture (Variant D):
   - Max MAX_STEPS tool calls per session to prevent runaway loops
   - Uses OpenAI function-calling (works with any OpenAI-compatible backend)
   - Falls back to PROXY_API_KEY (OpenRouter/DeepSeek) if OPENAI_API_KEY absent
-  - memory.json: per-user file export of the agent session (ДЗ artifact),
+  - memory.json: per-user file export of the agent session,
     fully separate from Blabber's SQLite memory.
     The file is written after each session but never read back —
     the real persistent memory lives in SQLite (context_service / profile_service).
@@ -91,7 +91,7 @@ def _make_client() -> tuple[OpenAI, str]:
     )
 
 
-# ── memory.json helpers (ДЗ artifact) ─────────────────────────────────────────
+# ── memory.json helpers ───────────────────────────────────────────────────────
 
 def _memory_path(user_id: int) -> Path:
     AGENT_MEMORY_DIR.mkdir(exist_ok=True)
@@ -260,7 +260,7 @@ def run_agent(user_message: str, user_id: int) -> str:
       1. Call LLM with tools; if it requests a tool call → dispatch → re-call LLM.
       2. Repeat up to MAX_STEPS times.
       3. Collect source URLs from all tool results, append deduplicated «Источники» block.
-      4. Export session (incl. sources) to memory.json (ДЗ artifact).
+      4. Export session (incl. sources) to memory.json.
       5. Return final text answer with sources footer.
 
     Args:

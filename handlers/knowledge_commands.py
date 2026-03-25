@@ -106,7 +106,7 @@ def register_knowledge_handlers(bot: telebot.TeleBot) -> None:
                         "🌐 <b>Как пользоваться /kb url</b>\n\n"
                         "Отправь ссылку так:\n"
                         "<code>/kb url https://example.com/article</code>\n\n"
-                        "Я загружу страницу, превращу её в текст и добавлю в общую базу знаний.",
+                        "Я загружу страницу, превращу её в текст и добавлю в твою базу знаний.",
                         parse_mode="HTML",
                     )
                     return

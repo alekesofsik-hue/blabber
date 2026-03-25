@@ -29,13 +29,15 @@ def register_profile_handlers(bot: telebot.TeleBot) -> None:
             bot.send_message(
                 message.chat.id,
                 "🧠 <b>Как пользоваться /remember</b>\n\n"
-                "Напиши факт о себе — я запомню его навсегда "
-                "(даже после перезапуска и смены модели).\n\n"
+                "Напиши факт о себе, своём проекте или текущем контексте — "
+                "я буду учитывать это в следующих ответах.\n\n"
+                "Если формулировка очень похожа на уже сохранённую, я постараюсь "
+                "не плодить дубль.\n\n"
                 "<b>Примеры:</b>\n"
                 "/remember Меня зовут Алексей\n"
-                "/remember Предпочитаю краткие ответы\n"
                 "/remember Мой проект — Telegram-бот на Python\n"
-                "/remember Не использовать сложные термины\n\n"
+                "/remember Я работаю аналитиком данных\n"
+                "/remember Мне важны практичные примеры\n\n"
                 "Для предпочтений (как отвечать): /prefer\n"
                 "Посмотреть и удалить: /profile",
                 parse_mode="HTML",
@@ -59,7 +61,7 @@ def register_profile_handlers(bot: telebot.TeleBot) -> None:
             bot.send_message(
                 message.chat.id,
                 "🎛 <b>Как пользоваться /prefer</b>\n\n"
-                "Напиши предпочтение — я буду учитывать его в каждом ответе.\n\n"
+                "Напиши, как именно мне отвечать — стиль, формат, ограничения.\n\n"
                 "<b>Примеры:</b>\n"
                 "/prefer Отвечай кратко и по делу\n"
                 "/prefer Не используй эмодзи\n"
@@ -114,7 +116,7 @@ def _build_profile_message(user_id: int) -> tuple[str, types.InlineKeyboardMarku
             "Расскажи — и я буду учитывать это в каждом ответе!\n\n"
             "<b>Примеры:</b>\n"
             "/remember Меня зовут Алексей\n"
-            "/remember Я предпочитаю краткие ответы\n"
+            "/remember Мой проект — Telegram-бот на Python\n"
             "/prefer Не используй эмодзи"
         )
         return text, None
@@ -129,7 +131,7 @@ def _build_profile_message(user_id: int) -> tuple[str, types.InlineKeyboardMarku
     if count >= profile_svc.MAX_FACTS:
         text += f"\n⚠️ Достигнут лимит ({profile_svc.MAX_FACTS} пунктов).\n"
 
-    text += "\nНажми ❌ рядом с пунктом чтобы удалить:"
+    text += "\nНажми ❌ рядом с пунктом, чтобы удалить:"
 
     kb = types.InlineKeyboardMarkup(row_width=1)
     for item in items:

@@ -1,7 +1,7 @@
 # Admin Panel Roadmap — Blabber Bot
 
 > **Статус:** В активной разработке
-> **Последнее обновление:** 2026-03-16
+> **Последнее обновление:** 2026-03-25
 > **Принципы:** Безопасность прежде всего · Каждый спринт оставляет бота рабочим · Новый код параллелен старому до полного переключения
 
 ---
@@ -15,9 +15,9 @@
 - **OpenAI:** Интеграция модели GPT-4o/GPT-4o-mini
 - **Контекст диалога:** Режимы Чат / Вопрос-ответ (`/mode`), `/reset` и `/clear`, окно 10 реплик + summary, TTL 60 мин
 - **Стоимость (шаг 1):** Реальные токены из OpenAI/OpenRouter API, расчёт cost_usd в `usage_logs` + вывод стоимости в рублях (курс ЦБ РФ) в чат
-- **Память D — Профиль пользователя:** `/remember`, `/profile` с inline-удалением; факты хранятся в SQLite и инжектируются в каждый запрос к LLM (миграция `005_user_profile.sql`)
-- **Память C — База знаний (RAG):** загрузка TXT/PDF/DOCX/MD, чанкинг, `/kb` с inline-управлением; адаптивный system_message (миграция `006_knowledge_base.sql`)
-- **Гибридный поиск (BM25 + Embeddings):** чанки хранят embedding BLOB (`007_kb_embedding.sql`); retrieval: BM25 shortlist → embedding rerank (α=0.3 BM25 + 0.7 cosine); graceful degradation на BM25-only если нет `OPENAI_API_KEY`
+- **Память D — Профиль пользователя:** `/remember`, `/prefer`, `/profile`; факты и предпочтения хранятся в SQLite, инжектируются в каждый запрос к LLM, а `/remember` дополнительно защищён от смысловых дублей через LanceDB
+- **Память C — База знаний (RAG):** загрузка TXT/PDF/DOCX/MD и URL, чанкинг, `/kb` с inline-управлением; адаптивный system_message
+- **Гибридный поиск (BM25 + LanceDB):** retrieval: BM25 shortlist + semantic candidates из LanceDB, затем гибридный rerank; graceful degradation на BM25-only если нет `OPENAI_API_KEY`
 - **Коллекция цитат `/quote`, `/quotes`:** метаданные в SQLite (`010_quotes.sql`), векторы в LanceDB; семантический поиск и список с пагинацией (3 на страницу)
 
 ---

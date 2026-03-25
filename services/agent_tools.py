@@ -7,7 +7,7 @@ Tools available to the agent:
   • hn_top(n)                          — top N stories from Hacker News (API)
   • fetch_summary(url, max_chars)      — fetch a URL and return extracted text
   • compare_two_headlines(...)         — two fresh headlines from different RSS feeds
-                                         (LangChain @tool — VPg03 homework)
+                                         (LangChain @tool integration)
 """
 
 from __future__ import annotations
@@ -313,7 +313,7 @@ def save_url_to_kb(url: str) -> dict[str, Any]:
     return save_url_to_kb_for_user(user_id, url)
 
 
-# ── compare_two_headlines (VPg03: схема для OpenAI из LangChain @tool) ────────
+# ── compare_two_headlines (схема для OpenAI из LangChain @tool) ───────────────
 
 def _first_headline_from_source(source_key: str) -> dict[str, str] | None:
     """Самый свежий пункт ленты (первый в RSS) или None."""

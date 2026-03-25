@@ -12,6 +12,7 @@ import logging
 
 import repositories.profile_repo as profile_repo
 from repositories.user_repo import get_by_telegram_id
+import services.user_memory_service as user_memory_svc
 
 logger = logging.getLogger("blabber")
 
@@ -89,6 +90,12 @@ def add_item(telegram_id: int, *, kind: str, text: str) -> tuple[bool, str]:
         return False, f"Достигнут лимит ({MAX_FACTS} пунктов). Удали лишнее через /profile"
 
     try:
+        if kind == "fact":
+            result = user_memory_svc.save_memory_item(telegram_id, kind=kind, text=fact)
+            if not result.get("ok"):
+                return False, result.get("message") or "Ошибка при сохранении"
+            return True, result.get("message") or "Запомнил!"
+
         added = profile_repo.add_item(uid, fact=fact, kind=kind)
         if not added:
             return False, "Такой факт уже сохранён"
@@ -106,9 +113,12 @@ def delete_fact_by_id(telegram_id: int, profile_id: int) -> tuple[bool, str]:
     if uid is None:
         return False, "Пользователь не найден"
     try:
+        item = profile_repo.get_item_by_id(profile_id, uid)
         deleted = profile_repo.delete_fact_by_id(profile_id, uid)
         if not deleted:
             return False, "Факт не найден"
+        if item and (item.get("kind") or "fact") == "fact":
+            user_memory_svc.delete_memory_item(telegram_id, profile_id)
         return True, "Забыл!"
     except Exception as exc:
         logger.warning("profile_delete_fact_failed", extra={"error": str(exc)})
@@ -120,7 +130,10 @@ def clear_facts(telegram_id: int) -> None:
     if uid is None:
         return
     try:
+        items = profile_repo.get_items_with_ids(uid)
         profile_repo.delete_all_facts(uid)
+        if any((item.get("kind") or "fact") == "fact" for item in items):
+            user_memory_svc.clear_user_memory_index(telegram_id)
     except Exception as exc:
         logger.warning("profile_clear_facts_failed", extra={"error": str(exc)})
 
