@@ -84,6 +84,7 @@ if _DB_AVAILABLE:
 from handlers import (  # noqa: E402
     register_admin_handlers,
     register_agent_handlers,
+    register_history_day_handlers,
     register_knowledge_handlers,
     register_persona_handlers,
     register_profile_handlers,
@@ -96,6 +97,7 @@ register_profile_handlers(bot)
 register_knowledge_handlers(bot)
 register_persona_handlers(bot)
 register_agent_handlers(bot)
+register_history_day_handlers(bot)
 register_quote_handlers(bot)
 register_report_handlers(bot)
 

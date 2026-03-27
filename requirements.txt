@@ -1,5 +1,7 @@
 pyTelegramBotAPI>=4.14.0
 openai>=1.0.0
+# Real Haystack integration for the "History Day" feature
+haystack-ai>=2.26.1
 # Инструмент агента через LangChain @tool + convert_to_openai_tool
 langchain-core>=0.3.0
 python-dotenv>=1.0.0

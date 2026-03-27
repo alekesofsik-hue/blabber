@@ -45,8 +45,8 @@ sudo journalctl -u blabber -n 50 --no-pager
   - 💡 *Если задан `welcome_message` в конфиге БД — показывается он (без HTML-разметки).*
 
 - [ ] **1.2** Напиши `/help`
-  - ✅ Бот ответил разделами (модели, роль, режим, память, цитаты, база знаний, агент, отчёт)
-  - ✅ В тексте упоминаются команды: `/start`, `/models`, `/model`, `/role`, `/mode`, `/reset`, `/clear`, `/voice`, `/remember`, `/prefer`, `/profile`, `/memory`, `/quote`, `/quotes`, `/kb`, `/kb url`, `/kb reindex`, `/agent`, `/agent kb`, `/duel`, `/compare_headlines`, `/report`, `/help`, `/admin`
+  - ✅ Бот ответил разделами (модели, роль, режим, память, цитаты, база знаний, агент, история дня, отчёт)
+  - ✅ В тексте упоминаются команды: `/start`, `/models`, `/model`, `/role`, `/mode`, `/reset`, `/clear`, `/voice`, `/remember`, `/prefer`, `/profile`, `/memory`, `/quote`, `/quotes`, `/kb`, `/kb url`, `/kb reindex`, `/agent`, `/agent kb`, `/duel`, `/compare_headlines`, `/historyday`, `/history`, `/historyday fact`, `/historyday image`, `/historyday context`, `/historyday memory`, `/historyday clear`, `/report`, `/help`, `/admin`
   - 💡 *`/remember` — факты о пользователе, проекте и контексте; очень похожие формулировки бот может не дублировать. `/prefer` — стиль ответа. Остальные разделы help должны соответствовать текущим командам и сценариям.*
 
 - [ ] **1.2a** Команда `/role` — меню выбора роли
