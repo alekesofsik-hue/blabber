@@ -202,3 +202,22 @@ def test_inspect_document_and_snapshot_report_operational_status(db, tmp_path, m
     assert snapshot["documents_total"] == 1
     assert snapshot["docling_docs"] == 1
     assert snapshot["table_docs"] == 1
+
+
+def test_global_kb_operations_snapshot_handles_raw_json_metadata(db):
+    telegram_id, user_db_id = _create_user(db, telegram_id=999307)
+
+    doc_id = knowledge_repo.add_document(
+        user_db_id,
+        "fallback.pdf",
+        100,
+        1,
+        parser_backend="legacy",
+        doc_metadata={"fallback_used": True},
+    )
+    knowledge_repo.add_chunks(doc_id, user_db_id, ["plain chunk"])
+
+    snapshot = knowledge_service.get_kb_operations_snapshot()
+
+    assert snapshot["documents_total"] == 1
+    assert snapshot["fallback_docs"] == 1

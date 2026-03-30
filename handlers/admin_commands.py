@@ -522,52 +522,56 @@ def _show_config_list(bot: telebot.TeleBot, call: types.CallbackQuery, category:
 
 
 def _show_stats(bot: telebot.TeleBot, call: types.CallbackQuery) -> None:
-    from datetime import datetime, timedelta
-    now = datetime.utcnow()
-    today_start = (now.replace(hour=0, minute=0, second=0, microsecond=0)).strftime("%Y-%m-%d %H:%M:%S")
-    week_start = (now - timedelta(days=7)).strftime("%Y-%m-%d %H:%M:%S")
-    now_str = now.strftime("%Y-%m-%d %H:%M:%S")
-
-    total_users = count_users()
-    active_users = sum(1 for _ in [1] if True)  # is_active count
-    with get_connection() as conn:
-        row = conn.execute("SELECT COUNT(*) AS cnt FROM users WHERE is_active = 1").fetchone()
-        active_users = row["cnt"] if row else 0
-
-    req_today = get_requests_count(today_start, now_str)
-    req_week = get_requests_count(week_start, now_str)
-    breakdown = get_provider_breakdown(week_start, now_str)
-    top = get_top_users(5, week_start, now_str)
-    kb_snapshot = kb_svc.get_kb_operations_snapshot()
-
-    blines = [f"  {b['provider']}: {b['cnt']}" for b in breakdown] if breakdown else ["  (нет данных)"]
-    tlines = []
-    for t in top:
-        un = t.get("username") or "-"
-        tlines.append(f"  {t['telegram_id']} @{un} — {t['req_count']} запр.")
-    if not tlines:
-        tlines = ["  (нет данных)"]
-
-    text = (
-        "📊 Статистика\n\n"
-        f"Пользователей: {total_users} (активных: {active_users})\n"
-        f"Запросов сегодня: {req_today}\n"
-        f"Запросов за неделю: {req_week}\n\n"
-        "По провайдерам (неделя):\n" + "\n".join(blines) + "\n\n"
-        "Топ-5 пользователей (неделя):\n" + "\n".join(tlines) + "\n\n"
-        "KB:\n"
-        f"  документов: {kb_snapshot['documents_total']}\n"
-        f"  docling: {kb_snapshot['docling_docs']}\n"
-        f"  fallback: {kb_snapshot['fallback_docs']}\n"
-        f"  summary ready: {kb_snapshot['summary_ready_docs']}\n"
-        f"  with tables: {kb_snapshot['table_docs']}"
-    )
-    kb = types.InlineKeyboardMarkup()
-    kb.add(types.InlineKeyboardButton("⬅ Меню", callback_data="admin_menu"))
     try:
+        from datetime import datetime, timedelta
+
+        now = datetime.utcnow()
+        today_start = (now.replace(hour=0, minute=0, second=0, microsecond=0)).strftime("%Y-%m-%d %H:%M:%S")
+        week_start = (now - timedelta(days=7)).strftime("%Y-%m-%d %H:%M:%S")
+        now_str = now.strftime("%Y-%m-%d %H:%M:%S")
+
+        total_users = count_users()
+        active_users = sum(1 for _ in [1] if True)  # is_active count
+        with get_connection() as conn:
+            row = conn.execute("SELECT COUNT(*) AS cnt FROM users WHERE is_active = 1").fetchone()
+            active_users = row["cnt"] if row else 0
+
+        req_today = get_requests_count(today_start, now_str)
+        req_week = get_requests_count(week_start, now_str)
+        breakdown = get_provider_breakdown(week_start, now_str)
+        top = get_top_users(5, week_start, now_str)
+        kb_snapshot = kb_svc.get_kb_operations_snapshot()
+
+        blines = [f"  {b['provider']}: {b['cnt']}" for b in breakdown] if breakdown else ["  (нет данных)"]
+        tlines = []
+        for t in top:
+            un = t.get("username") or "-"
+            tlines.append(f"  {t['telegram_id']} @{un} — {t['req_count']} запр.")
+        if not tlines:
+            tlines = ["  (нет данных)"]
+
+        text = (
+            "📊 Статистика\n\n"
+            f"Пользователей: {total_users} (активных: {active_users})\n"
+            f"Запросов сегодня: {req_today}\n"
+            f"Запросов за неделю: {req_week}\n\n"
+            "По провайдерам (неделя):\n" + "\n".join(blines) + "\n\n"
+            "Топ-5 пользователей (неделя):\n" + "\n".join(tlines) + "\n\n"
+            "KB:\n"
+            f"  документов: {kb_snapshot['documents_total']}\n"
+            f"  docling: {kb_snapshot['docling_docs']}\n"
+            f"  fallback: {kb_snapshot['fallback_docs']}\n"
+            f"  summary ready: {kb_snapshot['summary_ready_docs']}\n"
+            f"  with tables: {kb_snapshot['table_docs']}\n"
+            f"  with headings: {kb_snapshot['heading_docs']}"
+        )
+        kb = types.InlineKeyboardMarkup()
+        kb.add(types.InlineKeyboardButton("⬅ Меню", callback_data="admin_menu"))
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=kb)
     except Exception as e:
-        logger.warning("admin_stats_edit_failed", extra={"event": "admin_stats_edit_failed", "error": str(e)})
+        logger.exception("admin_stats_failed", extra={"event": "admin_stats_failed", "error": str(e)})
+        bot.answer_callback_query(call.id, "Не удалось загрузить статистику", show_alert=True)
+        return
     bot.answer_callback_query(call.id)
 
 

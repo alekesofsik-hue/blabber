@@ -25,6 +25,7 @@ Legacy note:
 from __future__ import annotations
 
 from dataclasses import asdict
+import json
 import logging
 import math
 import os
@@ -34,6 +35,7 @@ from typing import Any
 
 import repositories.knowledge_repo as kb_repo
 import repositories.kb_vector_repo as kb_vector_repo
+from database import get_connection
 from repositories.user_repo import get_by_telegram_id
 import services.context_service as ctx_svc
 import services.document_summary_service as doc_summary_svc
@@ -1631,11 +1633,24 @@ def inspect_chunks(telegram_id: int, doc_id: int, limit: int = 5) -> list[dict[s
 
 
 def get_kb_operations_snapshot(telegram_id: int | None = None) -> dict[str, Any]:
+    def _metadata_dict(raw: Any) -> dict[str, Any]:
+        if isinstance(raw, dict):
+            return raw
+        if not raw:
+            return {}
+        if isinstance(raw, str):
+            try:
+                parsed = json.loads(raw)
+            except Exception:
+                return {}
+            return parsed if isinstance(parsed, dict) else {}
+        return {}
+
     def _aggregate(docs: list[dict[str, Any]]) -> dict[str, Any]:
         return {
             "documents_total": len(docs),
             "docling_docs": sum(1 for doc in docs if doc.get("parser_backend") == "docling"),
-            "fallback_docs": sum(1 for doc in docs if bool((doc.get("doc_metadata_json") or {}).get("fallback_used"))),
+            "fallback_docs": sum(1 for doc in docs if bool(_metadata_dict(doc.get("doc_metadata_json")).get("fallback_used"))),
             "summary_ready_docs": sum(1 for doc in docs if doc.get("summary_status") in {"generated", "fallback_preview"}),
             "table_docs": sum(1 for doc in docs if doc.get("doc_has_tables")),
             "heading_docs": sum(1 for doc in docs if doc.get("doc_has_headings")),
