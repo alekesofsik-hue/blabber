@@ -15,6 +15,31 @@ import services.knowledge_service as kb_svc
 from user_storage import is_kb_enabled, set_kb_enabled
 
 SUPPORTED_EXTS = {"txt", "pdf", "docx", "doc", "md"}
+REINDEX_MODES = {"embeddings", "summary", "all"}
+
+
+def _doc_status_badges(doc: dict) -> str:
+    badges: list[str] = []
+    parser_backend = doc.get("parser_backend")
+    if parser_backend == "docling":
+        badges.append("docling")
+    elif parser_backend == "legacy":
+        badges.append("legacy")
+
+    summary_status = str(doc.get("summary_status") or "").strip().lower()
+    if summary_status == "generated":
+        badges.append("summary")
+    elif summary_status == "fallback_preview":
+        badges.append("preview")
+
+    if doc.get("doc_has_tables"):
+        badges.append("tables")
+    if doc.get("doc_has_headings"):
+        badges.append("sections")
+
+    if not badges:
+        return ""
+    return " [" + ", ".join(badges) + "]"
 
 
 def register_knowledge_handlers(bot: telebot.TeleBot) -> None:
@@ -61,26 +86,39 @@ def register_knowledge_handlers(bot: telebot.TeleBot) -> None:
                 return
 
             if arg == "reindex":
-                target = parts[2].strip().lower() if len(parts) >= 3 else "all"
+                target = "all"
+                mode = "embeddings"
+                dry_run = False
+                extra = [part.strip().lower() for part in parts[2:]]
+                if extra:
+                    if extra[0] in REINDEX_MODES | {"dry-run", "dryrun"}:
+                        pass
+                    else:
+                        target = extra.pop(0)
+                for item in extra:
+                    if item in {"dry-run", "dryrun"}:
+                        dry_run = True
+                    elif item in REINDEX_MODES:
+                        mode = item
                 wait_msg = bot.send_message(
                     message.chat.id,
                     "⏳ Переиндексирую KB по уже сохранённым фрагментам...",
                 )
 
                 if target == "all":
-                    ok, result_msg = kb_svc.reindex_all_documents(user_id)
+                    ok, result_msg = kb_svc.reindex_all_documents(user_id, mode=mode, dry_run=dry_run)
                 else:
                     try:
                         doc_id = int(target)
                     except ValueError:
                         bot.edit_message_text(
-                            "❌ Использование: /kb reindex all или /kb reindex <id>\n"
+                            "❌ Использование: /kb reindex [all|<id>] [embeddings|summary|all] [dry-run]\n"
                             "Посмотреть id можно в списке /kb.",
                             message.chat.id,
                             wait_msg.message_id,
                         )
                         return
-                    ok, result_msg = kb_svc.reindex_document(user_id, doc_id)
+                    ok, result_msg = kb_svc.reindex_document(user_id, doc_id, mode=mode, dry_run=dry_run)
 
                 if ok:
                     bot.edit_message_text(
@@ -194,10 +232,11 @@ def register_knowledge_handlers(bot: telebot.TeleBot) -> None:
             )
             return
 
-        if doc.file_size and doc.file_size > kb_svc.MAX_DOC_SIZE_BYTES:
+        max_doc_size_bytes = kb_svc.get_max_doc_size_bytes()
+        if doc.file_size and doc.file_size > max_doc_size_bytes:
             bot.send_message(
                 message.chat.id,
-                f"❌ Файл слишком большой (макс. {kb_svc.MAX_DOC_SIZE_BYTES // 1024} КБ).",
+                f"❌ Файл слишком большой (макс. {kb_svc.format_doc_size_limit(max_doc_size_bytes)}).",
             )
             return
 
@@ -212,7 +251,8 @@ def register_knowledge_handlers(bot: telebot.TeleBot) -> None:
             data = bot.download_file(file_info.file_path)
         except Exception as e:
             bot.edit_message_text(
-                f"❌ Не удалось скачать файл: {e}",
+                "❌ Не удалось скачать файл из Telegram.\n"
+                "Попробуй отправить его ещё раз.",
                 message.chat.id,
                 wait_msg.message_id,
             )
@@ -221,23 +261,22 @@ def register_knowledge_handlers(bot: telebot.TeleBot) -> None:
         ok, result_msg = kb_svc.index_document(user_id, filename, data)
 
         if ok:
-            kb_note = ""
+            final_msg = result_msg
             if not is_kb_enabled(user_id):
                 set_kb_enabled(user_id, True)
-                kb_note = "\n\n✅ База знаний автоматически включена."
+                final_msg += "\n\n✅ База знаний автоматически включена."
 
             bot.edit_message_text(
-                f"✅ <b>{filename}</b> добавлен в базу знаний!\n"
-                f"📄 {result_msg}{kb_note}\n\n"
-                "Задавай вопросы по документу — я найду нужные фрагменты!\n"
-                "Управление: /kb",
+                final_msg,
                 message.chat.id,
                 wait_msg.message_id,
                 parse_mode="HTML",
             )
         else:
             bot.edit_message_text(
-                f"❌ Не получилось добавить <b>{filename}</b>:\n{result_msg}",
+                f"❌ Не получилось добавить <b>{filename}</b>.\n\n"
+                f"{result_msg}\n\n"
+                "Попробуй загрузить файл ещё раз или проверь формат через /kb.",
                 message.chat.id,
                 wait_msg.message_id,
                 parse_mode="HTML",
@@ -268,7 +307,8 @@ def _build_kb_message(user_id: int) -> tuple[str, types.InlineKeyboardMarkup]:
             icon = "🌐" if doc.get("source_type") == "url" else "📄"
             text += (
                 f"• {icon} <code>id {doc['id']}</code> — {doc['name']} "
-                f"({size_kb} КБ, {doc['chunk_count']} фрагм.)\n"
+                f"({size_kb} КБ, {doc['chunk_count']} фрагм.)"
+                f"{_doc_status_badges(doc)}\n"
             )
             short_name = doc["name"][:35] + ("…" if len(doc["name"]) > 35 else "")
             kb.add(types.InlineKeyboardButton(
@@ -284,7 +324,9 @@ def _build_kb_message(user_id: int) -> tuple[str, types.InlineKeyboardMarkup]:
         )
 
     text += (
-        "\n\n<i>Команды: /kb on · /kb off · /kb clear · /kb url https://... · /kb reindex all · /kb reindex id\n"
+        "\n\n<i>Команды: /kb on · /kb off · /kb clear · /kb url https://... · "
+        "/kb reindex [all|id] [embeddings|summary|all] [dry-run]\n"
+        "dry-run — отдельный флаг предварительного просмотра без изменений\n"
         "id документа смотри в списке выше.\n"
         "Просто пришли файл — он добавится автоматически</i>"
     )

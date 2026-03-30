@@ -10,6 +10,7 @@ requests>=2.28.0
 yandex-cloud-ml-sdk>=0.17.0
 logtail-python>=0.3.0
 # Optional: for knowledge base document parsing
+docling>=2.82.0
 pypdf>=4.0.0
 python-docx>=1.1.0
 # Report generation (PDF from conversation history)

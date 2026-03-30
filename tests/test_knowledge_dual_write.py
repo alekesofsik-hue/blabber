@@ -83,6 +83,31 @@ def test_index_document_without_embeddings_stays_bm25_only(db, tmp_path, monkeyp
     assert kb_vector_repo.search_by_vector(user_db_id=user_db_id, query_vector=_vector(0), top_k=10) == []
 
 
+def test_index_document_reports_embedding_failure_honestly(db, tmp_path, monkeypatch):
+    monkeypatch.setenv("LANCEDB_PATH", str(tmp_path / "lancedb"))
+    monkeypatch.setenv("KB_ENABLE_DUAL_WRITE", "true")
+    telegram_id, user_db_id = _create_user(db, telegram_id=888008)
+
+    monkeypatch.setattr(knowledge_service.emb_svc, "is_available", lambda: True)
+    monkeypatch.setattr(knowledge_service.emb_svc, "embed_texts", lambda texts: None)
+
+    ok, msg = knowledge_service.index_document(
+        telegram_id,
+        "embed_fail.txt",
+        b"some plain text with failed embeddings",
+    )
+
+    assert ok is True
+    assert "embedding request failed" in msg
+
+    docs = knowledge_service.get_documents(telegram_id)
+    doc_id = docs[0]["id"]
+    chunks = knowledge_repo.get_chunks_by_doc(doc_id, user_db_id)
+    assert len(chunks) >= 1
+    assert all(chunk["embedding"] is None for chunk in chunks)
+    assert kb_vector_repo.search_by_vector(user_db_id=user_db_id, query_vector=_vector(0), top_k=10) == []
+
+
 def test_lancedb_write_failure_does_not_break_indexing(db, tmp_path, monkeypatch):
     monkeypatch.setenv("LANCEDB_PATH", str(tmp_path / "lancedb"))
     monkeypatch.setenv("KB_ENABLE_DUAL_WRITE", "true")

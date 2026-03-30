@@ -46,7 +46,7 @@ sudo journalctl -u blabber -n 50 --no-pager
 
 - [ ] **1.2** Напиши `/help`
   - ✅ Бот ответил разделами (модели, роль, режим, память, цитаты, база знаний, агент, история дня, отчёт)
-  - ✅ В тексте упоминаются команды: `/start`, `/models`, `/model`, `/role`, `/mode`, `/reset`, `/clear`, `/voice`, `/remember`, `/prefer`, `/profile`, `/memory`, `/quote`, `/quotes`, `/kb`, `/kb url`, `/kb reindex`, `/agent`, `/agent kb`, `/duel`, `/compare_headlines`, `/historyday`, `/history`, `/historyday fact`, `/historyday image`, `/historyday context`, `/historyday memory`, `/historyday clear`, `/report`, `/help`, `/admin`
+  - ✅ В тексте упоминаются команды: `/start`, `/models`, `/model`, `/role`, `/mode`, `/mode chat`, `/mode single`, `/mode qa`, `/reset`, `/clear`, `/voice`, `/remember`, `/prefer`, `/profile`, `/memory`, `/quote`, `/quotes`, `/quotes help`, `/kb`, `/kb on`, `/kb off`, `/kb clear`, `/kb url`, `/kb reindex`, `/agent`, `/agent on`, `/agent off`, `/agent kb`, `/duel`, `/compare_headlines`, `/historyday`, `/history`, `/historyday fact`, `/historyday image`, `/historyday context`, `/historyday memory`, `/historyday clear`, `/report`, `/report help`, `/help`, `/admin`
   - 💡 *`/remember` — факты о пользователе, проекте и контексте; очень похожие формулировки бот может не дублировать. `/prefer` — стиль ответа. Остальные разделы help должны соответствовать текущим командам и сценариям.*
 
 - [ ] **1.2a** Команда `/role` — меню выбора роли
@@ -502,7 +502,7 @@ sudo journalctl -u blabber -n 50 --no-pager
   - Напиши любое сообщение
   - ✅ В конце ответа появилась подсказка о режиме Вопрос-ответ
 
-- [ ] **11.12** Команды `/mode chat` и `/mode single` (текстовые)
+- [ ] **11.12** Команды `/mode chat`, `/mode single`, `/mode qa` (текстовые)
   - Напиши `/mode chat`
   - ✅ Бот переключил на Чат без показа кнопок
   - Напиши `/mode single`
@@ -737,7 +737,7 @@ sudo journalctl -u blabber -n 50 --no-pager
 > `/kb` управление, автовключение при первом источнике.
 >
 > **Источники:** TXT, PDF, DOC, DOCX, MD, публичные URL через `/kb url https://...`
-> **Лимиты:** 10 документов, 1 МБ каждый
+> **Лимиты:** 10 документов, размер файла по умолчанию до 3 МБ
 > **Гибридный поиск:** BM25 shortlist + LanceDB semantic candidates (если есть `OPENAI_API_KEY`)
 
 - [ ] **15.1** Команда `/kb` без документов
@@ -798,13 +798,14 @@ sudo journalctl -u blabber -n 50 --no-pager
   - ✅ Бот ответил: "🗑 База знаний полностью очищена."
   - ✅ `/kb` показывает "Документов: 0 / 10", база выключена
 
-- [ ] **15.10** Загрузка PDF *(нужен `pip install pypdf`)*
+- [ ] **15.10** Загрузка PDF
   - Отправь `.pdf` файл
-  - ✅ Бот проиндексировал (или вернул ошибку если `pypdf` не установлен — с подсказкой)
+  - ✅ Бот проиндексировал документ через текущий parser pipeline
+  - ✅ Если `Docling` не справился, fallback отрабатывает честно и без падения бота
 
-- [ ] **15.11** Загрузка DOCX *(нужен `pip install python-docx`)*
+- [ ] **15.11** Загрузка DOCX
   - Отправь `.docx` файл
-  - ✅ Бот проиндексировал (или вернул ошибку если `python-docx` не установлен — с подсказкой)
+  - ✅ Бот проиндексировал документ через текущий parser pipeline
 
 - [ ] **15.12** Проверка гибридного поиска (BM25 + Embeddings)
   - Загрузи документ, содержащий факт: "Иван Петров — директор компании"
@@ -856,12 +857,12 @@ sudo journalctl -u blabber -n 50 --no-pager
 
 - [ ] **15.19** Переиндексация KB по сохранённым chunk'ам
   ```
-  /kb reindex all
+  /kb reindex all all
   ```
   - ✅ Бот сообщает, что переиндексация завершена
-  - ✅ В `/kb` видны `id` документов для точечной команды `/kb reindex <id>`
+  - ✅ В `/kb` видны `id` документов для точечной команды `/kb reindex <id> all`
   - ✅ После переиндексации вопросы по документам продолжают работать
-  - 💡 *Команда не перечитывает исходные файлы заново, а пересобирает vector index по уже сохранённым chunk'ам.*
+  - 💡 *Команда не перечитывает исходные файлы заново, а работает по уже сохранённым chunk'ам и metadata.*
 
 - [ ] **15.20** Shadow compare поверх `lancedb`
   - В `.env` установи `KB_ENABLE_SHADOW_COMPARE=true`, перезапусти бота
@@ -1026,7 +1027,7 @@ sudo journalctl -u blabber -n 50 --no-pager
   - ✅ Показано «Страница 1 из N», нумерация по всей коллекции; **полный текст** цитаты (не обрезан посередине), id и дата
   - ✅ Одна строка кнопок **🗑 1**, **🗑 2**, **🗑 3** — номер совпадает с номером цитаты на странице (без повторения текста в кнопке)
   - ✅ На странице не больше **3** цитат (лимит Telegram); при большом числе фраз — «Вперёд ▶️» / «◀️ Назад»
-  - ✅ Подсказки про `/quotes search` и `/quotes del номер`
+  - ✅ Подсказки про `/quotes search` и `/quotes del id`
 
 - [ ] **17b.2.3** Пустая коллекция (новый пользователь)
   - Если используешь тестовый аккаунт без фраз: `/quotes`
@@ -1063,7 +1064,7 @@ sudo journalctl -u blabber -n 50 --no-pager
 - [ ] **17b.4.1** Удалить по кнопке или по команде
   - Открой `/quotes list` и нажми **🗑 1**, **🗑 2** или **🗑 3** у нужной строки (номер = номер цитаты на странице)
   - ✅ Сообщение обновилось, фраза исчезла из списка (или страница стала пустой и перешла назад)
-  - Альтернатива: по id из списка — `/quotes del номер`
+  - Альтернатива: по id из списка — `/quotes del id`
   - ✅ Бот ответил «🗑 Фраза удалена.» (при команде) или уведомление о удалении (при кнопке)
 
 - [ ] **17b.4.2** Удалить несуществующий id
@@ -1314,8 +1315,8 @@ sqlite3 blabber.db "PRAGMA table_info(users);" | grep context_mode
 | `/kb` не работает | Проверь миграцию 006: `kb_documents`, `kb_chunks` |
 | Embeddings = NULL при загрузке | `OPENAI_API_KEY` не задан или невалиден — fallback на BM25-only |
 | «BM25-only, no API key» при загрузке | Нормально если `OPENAI_API_KEY` не настроен; качество поиска ниже |
-| Ошибка при загрузке PDF | Не установлен `pypdf`: `pip install pypdf` |
-| Ошибка при загрузке DOCX | Не установлен `python-docx`: `pip install python-docx` |
+| Ошибка при загрузке PDF | Проверь логи `Docling`/fallback и зависимости из `requirements.txt`; бот должен либо обработать PDF, либо честно завершить через fallback |
+| Ошибка при загрузке DOCX | Проверь текущий parser pipeline и зависимости из `requirements.txt`; бот должен вернуть понятную ошибку без зависания |
 
 ```bash
 sqlite3 blabber.db ".schema user_profiles"
@@ -1380,7 +1381,7 @@ sqlite3 blabber.db "PRAGMA table_info(kb_chunks);" | grep embedding
   - Убедиться, что `KB_WRITE_LEGACY_EMBEDDING=false`
   - Загрузить новый документ
   - ✅ KB работает через `LanceDB`
-  - ✅ При необходимости rollback buffer можно освежить отдельно через `KB_WRITE_LEGACY_EMBEDDING=true` + `/kb reindex all`
+  - ✅ При необходимости rollback buffer можно освежить отдельно через `KB_WRITE_LEGACY_EMBEDDING=true` + `/kb reindex all embeddings`
 
 - [ ] **15c.11** Agent может сохранить URL в KB
   - Выполнить `/agent kb https://example.com/`
@@ -1396,7 +1397,7 @@ sqlite3 blabber.db "PRAGMA table_info(kb_chunks);" | grep embedding
 - [ ] `/kb` открывается
 - [ ] загрузка TXT/PDF/DOC/DOCX/MD работает
 - [ ] `/kb url https://...` работает
-- [ ] `/kb reindex all` работает
+- [ ] `/kb reindex all all` работает
 - [ ] вопрос по документу работает
 - [ ] вопрос по URL-странице работает
 - [ ] удаление одного источника работает
@@ -1418,3 +1419,62 @@ sqlite3 blabber.db "PRAGMA table_info(kb_chunks);" | grep embedding
   - `kb_lancedb_write_failed`
 - [ ] Проверить, что нет всплеска ошибок `LanceDB`
 - [ ] Проверить, что retrieval не возвращает пустой результат там, где раньше KB отвечала
+
+---
+
+## Раздел 15e — KB Sprint 8 Rollback and Rollout
+
+> **Что проверяем:** feature-flag rollback, summary/docling degradation path и безопасное включение новых KB-возможностей.
+
+- [ ] **15e.1** Rollback: structured retrieval off
+  - `/admin` → `kb` → выключить `kb_structured_retrieval_enabled`
+  - Задать обычный вопрос по уже загруженному документу
+  - ✅ KB по-прежнему отвечает
+  - ✅ Нет ошибок retrieval после выключения metadata-aware ранжирования
+
+- [ ] **15e.2** Rollback: summary generation off
+  - `/admin` → `kb` → выключить `kb_doc_summary_enabled`
+  - Загрузить новый документ
+  - ✅ Индексация завершается успешно
+  - ✅ В ответе после загрузки нет блока summary/topics/questions
+
+- [ ] **15e.3** Rollback: Docling off
+  - `/admin` → `kb` → выключить `kb_docling_enabled`
+  - Загрузить `TXT` или простой `PDF`
+  - ✅ Документ индексируется через legacy path без падения бота
+
+- [ ] **15e.4** Reindex dry-run
+  - Выполнить `/kb reindex all all dry-run`
+  - ✅ Бот показывает план работ без фактического изменения данных
+
+- [ ] **15e.5** Reindex summary only
+  - Выполнить `/kb reindex all summary`
+  - ✅ Summary artifacts обновляются без полного пересоздания KB-документов
+
+- [ ] **15e.6** Reindex embeddings only
+  - Выполнить `/kb reindex all embeddings`
+  - ✅ Пересчёт проходит штатно, без потери документов в `/kb`
+
+- [ ] **15e.7** Admin KB stats
+  - `/admin` → `📊 Статистика`
+  - ✅ Видны счётчики документов, `Docling`, `fallback`, `summary`, `tables`, `headings`
+
+- [ ] **15e.8** SQL smoke-check по структуре
+  - Выполнить:
+    ```bash
+    sqlite3 blabber.db "select id,name,parser_backend,summary_status,doc_has_tables,doc_has_headings from kb_documents order by id desc limit 10;"
+    sqlite3 blabber.db "select doc_id,chunk_idx,section_title,block_type,is_table,page_from,page_to from kb_chunks order by id desc limit 20;"
+    ```
+  - ✅ У новых документов заполнены parser/status/metadata поля
+
+- [ ] **15e.9** Rollout: safe enable sequence
+  - Сначала оставить:
+    - `kb_docling_enabled = false`
+    - `kb_doc_summary_enabled = false`
+    - `kb_structured_retrieval_enabled = false`
+  - Затем включать по шагам:
+    - parse only
+    - structured chunks
+    - summary
+    - structured retrieval
+  - ✅ На каждом шаге upload и обычный KB-answer остаются рабочими

@@ -22,6 +22,7 @@ logger = logging.getLogger("blabber")
 
 EMBEDDING_MODEL = "text-embedding-3-small"
 EMBEDDING_DIM = 1536
+EMBEDDING_BATCH_SIZE = 64
 
 
 def _get_client():
@@ -55,14 +56,40 @@ def embed_texts(texts: list[str]) -> Optional[list[list[float]]]:
     if not texts:
         return []
 
+    vectors: list[list[float]] = []
+    total_batches = (len(texts) + EMBEDDING_BATCH_SIZE - 1) // EMBEDDING_BATCH_SIZE
     try:
-        response = client.embeddings.create(
-            model=EMBEDDING_MODEL,
-            input=texts,
-        )
-        return [item.embedding for item in response.data]
+        for batch_idx, start in enumerate(range(0, len(texts), EMBEDDING_BATCH_SIZE), start=1):
+            batch = texts[start:start + EMBEDDING_BATCH_SIZE]
+            response = client.embeddings.create(
+                model=EMBEDDING_MODEL,
+                input=batch,
+            )
+            batch_vectors = [item.embedding for item in response.data]
+            if len(batch_vectors) != len(batch):
+                raise ValueError(
+                    f"Embedding API returned {len(batch_vectors)} vectors for batch of {len(batch)} texts"
+                )
+            vectors.extend(batch_vectors)
+            logger.info(
+                "embedding_batch_computed",
+                extra={
+                    "event": "embedding_batch_computed",
+                    "batch_idx": batch_idx,
+                    "total_batches": total_batches,
+                    "batch_size": len(batch),
+                },
+            )
+        return vectors
     except Exception as exc:
-        logger.warning("embedding_compute_failed", extra={"error": str(exc)[:200]})
+        logger.warning(
+            "embedding_compute_failed",
+            extra={
+                "error": str(exc)[:200],
+                "texts_count": len(texts),
+                "batch_size": EMBEDDING_BATCH_SIZE,
+            },
+        )
         return None
 
 

@@ -14,6 +14,7 @@ from telebot import types
 
 import services.cbr_service as cbr_svc
 import services.context_service as ctx_svc
+import services.kb_answer_transparency as kb_transparency_svc
 import services.knowledge_service as kb_svc
 import services.persona_service as persona_svc
 import services.profile_service as profile_svc
@@ -863,8 +864,16 @@ def handle_text_message(message):
 
         # ── Long memory C: RAG knowledge base ─────────────────────────────────
         rag_ctx: str | None = None
+        kb_context_payload = {
+            "context": None,
+            "results_count": 0,
+            "source_docs": [],
+            "source_refs": [],
+            "used_kb": False,
+        }
         if is_kb_enabled(user_id):
-            rag_ctx = kb_svc.build_kb_context(user_id, user_message)
+            kb_context_payload = kb_svc.build_kb_context_payload(user_id, user_message)
+            rag_ctx = kb_context_payload["context"]
             if rag_ctx:
                 # Append after history — closest to the user's question
                 history = history + [{"role": "assistant", "content": rag_ctx}]
@@ -920,10 +929,26 @@ def handle_text_message(message):
                 "selected_model": selected_model,
                 "reply_len": len(bot_response or ""),
                 "cost_usd": round(cost_usd, 6),
+                "kb_used": bool(kb_context_payload.get("used_kb")),
+                "kb_results_count": int(kb_context_payload.get("results_count") or 0),
             },
         )
 
         send_long_message(chat_id, bot_response)
+
+        kb_footer, kb_footer_mode = kb_transparency_svc.build_kb_answer_footer(
+            kb_enabled=is_kb_enabled(user_id),
+            kb_used=bool(kb_context_payload.get("used_kb")),
+            source_docs=list(kb_context_payload.get("source_docs") or []),
+            source_refs=list(kb_context_payload.get("source_refs") or []),
+            results_count=int(kb_context_payload.get("results_count") or 0),
+        )
+        if kb_footer:
+            bot.send_message(
+                chat_id,
+                kb_footer,
+                parse_mode=kb_footer_mode,
+            )
 
         # ── Cost footer: show price in RUB if non-zero ─────────────────────────
         cost_rub_str = cbr_svc.format_cost_rub(cost_usd)

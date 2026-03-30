@@ -39,7 +39,7 @@ def add_quote(telegram_id: int, text: str) -> tuple[bool, str]:
 
     count = quotes_repo.get_quote_count(telegram_id)
     if count >= MAX_QUOTES:
-        return False, f"Достигнут лимит ({MAX_QUOTES} фраз). Удали лишнее в /quotes list или: /quotes del номер."
+        return False, f"Достигнут лимит ({MAX_QUOTES} фраз). Удали лишнее в /quotes list или: /quotes del id."
 
     # Compute embedding (graceful degradation: None if key missing)
     vector = emb_svc.embed_single(text)

@@ -30,6 +30,7 @@ from repositories.user_repo import (
 from repositories.usage_repo import get_requests_count, get_provider_breakdown, get_top_users
 from middleware.rate_limit import is_rate_limited, get_retry_after
 from services.config_registry import get_config_registry
+from services import knowledge_service as kb_svc
 from services.user_service import ban, unban, set_role as service_set_role
 from services.usage_service import get_daily_report, get_user_report
 
@@ -43,7 +44,7 @@ _pending: dict[int, dict[str, Any]] = {}
 
 PAGE_SIZE = 10
 ROLES = ["user", "moderator", "admin"]
-CONFIG_CATEGORIES = ["models", "limits", "tts", "system", "messages"]
+CONFIG_CATEGORIES = ["models", "limits", "tts", "system", "messages", "kb"]
 
 
 def _main_menu_keyboard() -> types.InlineKeyboardMarkup:
@@ -537,6 +538,7 @@ def _show_stats(bot: telebot.TeleBot, call: types.CallbackQuery) -> None:
     req_week = get_requests_count(week_start, now_str)
     breakdown = get_provider_breakdown(week_start, now_str)
     top = get_top_users(5, week_start, now_str)
+    kb_snapshot = kb_svc.get_kb_operations_snapshot()
 
     blines = [f"  {b['provider']}: {b['cnt']}" for b in breakdown] if breakdown else ["  (нет данных)"]
     tlines = []
@@ -552,7 +554,13 @@ def _show_stats(bot: telebot.TeleBot, call: types.CallbackQuery) -> None:
         f"Запросов сегодня: {req_today}\n"
         f"Запросов за неделю: {req_week}\n\n"
         "По провайдерам (неделя):\n" + "\n".join(blines) + "\n\n"
-        "Топ-5 пользователей (неделя):\n" + "\n".join(tlines)
+        "Топ-5 пользователей (неделя):\n" + "\n".join(tlines) + "\n\n"
+        "KB:\n"
+        f"  документов: {kb_snapshot['documents_total']}\n"
+        f"  docling: {kb_snapshot['docling_docs']}\n"
+        f"  fallback: {kb_snapshot['fallback_docs']}\n"
+        f"  summary ready: {kb_snapshot['summary_ready_docs']}\n"
+        f"  with tables: {kb_snapshot['table_docs']}"
     )
     kb = types.InlineKeyboardMarkup()
     kb.add(types.InlineKeyboardButton("⬅ Меню", callback_data="admin_menu"))

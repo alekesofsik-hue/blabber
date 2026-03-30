@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from database import get_connection
 from repositories import kb_vector_repo, knowledge_repo, user_repo
+from services import document_summary_service
 from services import knowledge_service
 
 
@@ -97,3 +98,107 @@ def test_reindex_all_documents_updates_multiple_docs(db, tmp_path, monkeypatch):
     ok, msg = knowledge_service.reindex_all_documents(telegram_id)
     assert ok is True
     assert "Переиндексировано документов: 2/2." in msg
+
+
+def test_reindex_document_can_refresh_summary_only(db, tmp_path, monkeypatch):
+    monkeypatch.setenv("LANCEDB_PATH", str(tmp_path / "lancedb"))
+    monkeypatch.setenv("KB_ENABLE_DUAL_WRITE", "true")
+    telegram_id, user_db_id = _create_user(db, telegram_id=999304)
+
+    monkeypatch.setattr(knowledge_service.emb_svc, "is_available", lambda: False)
+
+    ok, _ = knowledge_service.index_document(
+        telegram_id,
+        "summary.txt",
+        "# Camera\n\nThe diaphragm controls light.".encode(),
+    )
+    assert ok is True
+
+    doc_id = knowledge_service.get_documents(telegram_id)[0]["id"]
+    monkeypatch.setattr(
+        knowledge_service.doc_summary_svc,
+        "generate_summary_artifacts",
+        lambda *args, **kwargs: document_summary_service.SummaryArtifacts(
+            summary="Документ про диафрагму.",
+            key_topics=["диафрагма"],
+            suggested_questions=["Как работает диафрагма?"],
+            status="generated",
+            source="llm",
+            generated_at="2026-03-30T12:00:00+00:00",
+        ),
+    )
+
+    ok, msg = knowledge_service.reindex_document(telegram_id, doc_id, mode="summary")
+    assert ok is True
+    assert "summary=generated" in msg
+
+    doc = knowledge_service.get_documents(telegram_id)[0]
+    assert doc["summary_text"] == "Документ про диафрагму."
+    assert doc["summary_status"] == "generated"
+
+
+def test_reindex_all_documents_dry_run_reports_mode_without_mutation(db, tmp_path, monkeypatch):
+    monkeypatch.setenv("LANCEDB_PATH", str(tmp_path / "lancedb"))
+    monkeypatch.setenv("KB_ENABLE_DUAL_WRITE", "true")
+    telegram_id, _user_db_id = _create_user(db, telegram_id=999305)
+
+    monkeypatch.setattr(knowledge_service.emb_svc, "is_available", lambda: True)
+    monkeypatch.setattr(knowledge_service.emb_svc, "embed_texts", lambda texts: [_vector(0) for _ in texts])
+
+    assert knowledge_service.index_document(telegram_id, "one.txt", b"# One\n\nalpha beta")[0] is True
+
+    before = knowledge_service.get_documents(telegram_id)[0]
+    ok, msg = knowledge_service.reindex_all_documents(telegram_id, mode="all", dry_run=True)
+    after = knowledge_service.get_documents(telegram_id)[0]
+
+    assert ok is True
+    assert "dry-run" in msg
+    assert "Режим: all." in msg
+    assert before["summary_generated_at"] == after["summary_generated_at"]
+
+
+def test_inspect_document_and_snapshot_report_operational_status(db, tmp_path, monkeypatch):
+    monkeypatch.setenv("LANCEDB_PATH", str(tmp_path / "lancedb"))
+    monkeypatch.setenv("KB_ENABLE_DUAL_WRITE", "true")
+    telegram_id, user_db_id = _create_user(db, telegram_id=999306)
+
+    doc_id = knowledge_repo.add_document(
+        user_db_id,
+        "manual.pdf",
+        100,
+        1,
+        parser_backend="docling",
+        parser_mode="docling_with_legacy_fallback",
+        source_format="PDF",
+        doc_has_tables=True,
+        doc_has_headings=True,
+        summary_status="generated",
+    )
+    knowledge_repo.add_chunks(
+        doc_id,
+        user_db_id,
+        ["| ISO | value |\n| --- | --- |\n| 100 | bright |"],
+        chunk_metadata=[
+            {
+                "section_title": "Характеристики",
+                "heading_path": ["Характеристики"],
+                "page_from": 4,
+                "page_to": 4,
+                "block_type": "table",
+                "is_table": True,
+                "table_id": "table_1",
+                "meta": {},
+            }
+        ],
+    )
+
+    inspect = knowledge_service.inspect_document(telegram_id, doc_id)
+    snapshot = knowledge_service.get_kb_operations_snapshot(telegram_id)
+
+    assert inspect is not None
+    assert inspect["parse_success"] is True
+    assert inspect["summary_ready"] is True
+    assert inspect["metadata_richness"] in {"medium", "high"}
+    assert snapshot["documents_total"] == 1
+    assert snapshot["docling_docs"] == 1
+    assert snapshot["table_docs"] == 1

@@ -138,7 +138,7 @@ def _build_status_text(user_id: int) -> str:
         f"👁 Vision-анализ: <b>{vision_state}</b>\n\n"
         "<b>Команды</b>\n"
         "<code>/historyday</code> или <code>/history</code> — эта карточка\n"
-        "<code>/historyday help</code> / <code>/historyday status</code> — показать её снова\n"
+        "<code>/historyday help</code> / <code>/historyday status</code> — повторно показать карточку сценария\n"
         "<code>/historyday fact</code> [MM-DD | YYYY-MM-DD] — факт дня\n"
         "<code>/historyday image</code> [дата или вопрос] — изображение и анализ\n"
         "<code>/historyday context &lt;вопрос&gt;</code> — ответ по сохраненной памяти\n"

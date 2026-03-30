@@ -8,6 +8,9 @@ Commands:
   /agent kb <url>     — save a URL page into the shared KB
   /duel               — явный запуск сравнения двух заголовков (compare_two_headlines)
   /compare_headlines  — то же, что /duel
+
+Internal alias `save_url` exists for backward compatibility, but public docs
+should use only `/agent kb <url>`.
 """
 
 from __future__ import annotations

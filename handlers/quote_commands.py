@@ -10,7 +10,7 @@ Commands:
   /quotes                — случайная фраза из коллекции
   /quotes list           — вся коллекция (по 3 на страницу; кнопки 🗑 1–3)
   /quotes search <текст> — семантический поиск по смыслу
-  /quotes del номер      — удалить по id из списка (см. подпись «id …»)
+  /quotes del id         — удалить по id из списка (см. подпись «id …»)
   /quotes clear          — очистить всю коллекцию
   /quotes help           — справка
 """
@@ -133,7 +133,7 @@ def register_quote_handlers(bot: telebot.TeleBot) -> None:
 
         elif sub == "del":
             if not tail or not tail.strip().isdigit():
-                bot.send_message(chat_id, "❌ Укажи номер фразы: /quotes del 3")
+                bot.send_message(chat_id, "❌ Укажи id фразы: /quotes del 3")
                 return
             quote_id = int(tail.strip())
             ok, msg = quotes_svc.delete_quote(user_id, quote_id)
@@ -344,7 +344,7 @@ def _build_list_page(user_id: int, page: int) -> tuple[str, types.InlineKeyboard
         lines.append(f"   <i>id {q['id']} • {html.escape(added)}</i>")
 
     lines.append(
-        "\n🔍 /quotes search ваш_запрос · <b>Удалить:</b> кнопки 🗑 с номером строки выше или /quotes del номер"
+        "\n🔍 /quotes search ваш_запрос · <b>Удалить:</b> кнопки 🗑 с номером строки выше или /quotes del id"
     )
 
     text_out = "\n".join(lines)
@@ -366,7 +366,7 @@ def _build_list_page(user_id: int, page: int) -> tuple[str, types.InlineKeyboard
             lines.append(f"   <i>id {q['id']} • {html.escape(added)}</i>")
         lines.append(
             "\n<i>Текст на странице урезан из‑за лимита Telegram (4096 символов).</i>\n"
-            "\n🔍 /quotes search · Удалить: 🗑 по номеру или /quotes del номер"
+            "\n🔍 /quotes search · Удалить: 🗑 по номеру строки или /quotes del id"
         )
         text_out = "\n".join(lines)
 
@@ -513,8 +513,8 @@ def _send_help(bot: telebot.TeleBot, chat_id: int) -> None:
         "Пример: /quotes search грусть\n"
         "→ Найдёт фразы <i>по смыслу</i>, не только по словам!\n\n"
         "<b>Удалить:</b>\n"
-        "В списке — кнопки 🗑 по номеру строки или /quotes del номер "
-        "(номер из подписи <code>id …</code> под цитатой)\n"
+        "В списке — кнопки 🗑 по номеру строки или /quotes del id "
+        "(используй <code>id …</code> из подписи под цитатой)\n"
         "/quotes clear — очистить всю коллекцию\n\n"
         "<i>Поиск по смыслу работает с OpenAI ключом. "
         "Без него — поиск по словам.</i>"

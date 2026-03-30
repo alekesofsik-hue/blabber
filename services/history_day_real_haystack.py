@@ -7,7 +7,7 @@ This module is intentionally small and focused:
 - returns normalized observations that the scenario orchestrator can reuse
 
 Unlike the compatibility-only adapter, this module depends on the actual
-`haystack-ai` package and is the real integration point for the homework.
+`haystack-ai` package and is the real integration point for the scenario.
 """
 
 from __future__ import annotations
